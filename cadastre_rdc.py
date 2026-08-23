@@ -10266,7 +10266,7 @@ if __name__ == "__main__":
     if "--qr-server" in sys.argv:
         lancer_serveur_verification_qr()
         raise SystemExit(0)
-    # ========================================================
+        # ========================================================
     # Configuration Flet pour les téléversements
     # ========================================================
     FLET_SECRET_KEY = os.environ.get("FLET_SECRET_KEY")
@@ -10278,9 +10278,13 @@ if __name__ == "__main__":
     os.makedirs(UPLOADS_DIR, exist_ok=True)
     os.makedirs(os.path.join(UPLOADS_DIR, "proprietaires"), exist_ok=True)
 
-    # Lancement de l'application Flet en mode Web
-    ft.run(
-        main,
-        view=ft.AppView.WEB_BROWSER,
+    # Lancement de l'application Flet en mode Web pour le serveur (Render)
+    import os
+    port = int(os.environ.get("PORT", 8080))
+    ft.app(
+        target=main,
+        view=None,
+        port=port,
+        host="0.0.0.0",
         upload_dir=UPLOADS_DIR,
     )
