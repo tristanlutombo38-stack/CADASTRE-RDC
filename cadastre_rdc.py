@@ -1655,7 +1655,12 @@ init_database()
 def journaliser(action, details=""):
     conn = db_connect()
     columns = [row["name"] for row in conn.execute("PRAGMA table_info(journal)").fetchall()]
-    territorial_columns = {"utilisateur_id", "utilisateur_nom", "role", "niveau_acces", "province", "ville", "territoire", "commune", "secteur_chefferie", "groupement", "village", "departement"}
+    territorial_columns = {
+        "utilisateur_id", "utilisateur_nom", "role", "niveau_acces",
+        "province", "ville", "territoire", "commune", "secteur_chefferie",
+        "groupement", "village", "departement"
+    }
+    
     if territorial_columns.issubset(columns):
         conn.execute(
             """
@@ -1664,11 +1669,13 @@ def journaliser(action, details=""):
                                 groupement, village, departement)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (action, details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-             AUDIT_CONTEXT.get("user_id"), AUDIT_CONTEXT.get("user_name"), AUDIT_CONTEXT.get("user_role"),
-             AUDIT_CONTEXT.get("niveau_acces"), AUDIT_CONTEXT.get("province"), AUDIT_CONTEXT.get("ville"),
-             AUDIT_CONTEXT.get("territoire"), AUDIT_CONTEXT.get("commune"), AUDIT_CONTEXT.get("secteur_chefferie"),
-             AUDIT_CONTEXT.get("groupement"), AUDIT_CONTEXT.get("village"), AUDIT_CONTEXT.get("departement")),
+            (
+                action, details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                AUDIT_CONTEXT.get("user_id"), AUDIT_CONTEXT.get("user_name"), AUDIT_CONTEXT.get("user_role"),
+                AUDIT_CONTEXT.get("niveau_acces"), AUDIT_CONTEXT.get("province"), AUDIT_CONTEXT.get("ville"),
+                AUDIT_CONTEXT.get("territoire"), AUDIT_CONTEXT.get("commune"), AUDIT_CONTEXT.get("secteur_chefferie"),
+                AUDIT_CONTEXT.get("groupement"), AUDIT_CONTEXT.get("village"), AUDIT_CONTEXT.get("departement")
+            ),
         )
     elif {"utilisateur_id", "utilisateur_nom", "role"}.issubset(columns):
         conn.execute(
@@ -1676,8 +1683,10 @@ def journaliser(action, details=""):
             INSERT INTO journal(action, details, date_action, utilisateur_id, utilisateur_nom, role)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (action, details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-             AUDIT_CONTEXT.get("user_id"), AUDIT_CONTEXT.get("user_name"), AUDIT_CONTEXT.get("user_role")),
+            (
+                action, details, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                AUDIT_CONTEXT.get("user_id"), AUDIT_CONTEXT.get("user_name"), AUDIT_CONTEXT.get("user_role")
+            ),
         )
     else:
         conn.execute(
@@ -1716,28 +1725,47 @@ def get_count(table):
         else:
             sql = f"SELECT COUNT(*) FROM documents d JOIN parcelles p ON p.id=d.parcelle_id WHERE {scope}"
         result = conn.execute(sql, params).fetchone()[0]
+        
     elif table == "utilisateurs":
         if level == "National" or not province:
             result = conn.execute("SELECT COUNT(*) FROM utilisateurs").fetchone()[0]
         else:
             sql = "SELECT COUNT(*) FROM utilisateurs WHERE LOWER(COALESCE(province,''))=LOWER(?)"
             params = [province]
-            if level == "Ville" and ville: sql += " AND LOWER(COALESCE(ville,''))=LOWER(?)"; params.append(ville)
-            elif level == "Territoire" and territoire: sql += " AND LOWER(COALESCE(territoire,''))=LOWER(?)"; params.append(territoire)
-            elif level == "Commune" and commune: sql += " AND LOWER(COALESCE(commune,''))=LOWER(?)"; params.append(commune)
-            elif level in {"Secteur","Chefferie"} and secteur: sql += " AND LOWER(COALESCE(secteur_chefferie,''))=LOWER(?)"; params.append(secteur)
-            elif level == "Groupement" and groupement: sql += " AND LOWER(COALESCE(groupement,''))=LOWER(?)"; params.append(groupement)
-            elif level in {"Village","Local"} and village: sql += " AND LOWER(COALESCE(village,''))=LOWER(?)"; params.append(village)
+            if level == "Ville" and ville:
+                sql += " AND LOWER(COALESCE(ville,''))=LOWER(?)"
+                params.append(ville)
+            elif level == "Territoire" and territoire:
+                sql += " AND LOWER(COALESCE(territoire,''))=LOWER(?)"
+                params.append(territoire)
+            elif level == "Commune" and commune:
+                sql += " AND LOWER(COALESCE(commune,''))=LOWER(?)"
+                params.append(commune)
+            elif level in {"Secteur", "Chefferie"} and secteur:
+                sql += " AND LOWER(COALESCE(secteur_chefferie,''))=LOWER(?)"
+                params.append(secteur)
+            elif level == "Groupement" and groupement:
+                sql += " AND LOWER(COALESCE(groupement,''))=LOWER(?)"
+                params.append(groupement)
+            elif level in {"Village", "Local"} and village:
+                sql += " AND LOWER(COALESCE(village,''))=LOWER(?)"
+                params.append(village)
             result = conn.execute(sql, params).fetchone()[0]
+            
     else:
         if level == "National" or not province:
             result = conn.execute("SELECT COUNT(*) FROM journal").fetchone()[0]
         else:
             sql = "SELECT COUNT(*) FROM journal WHERE LOWER(COALESCE(province,''))=LOWER(?)"
             params = [province]
-            if level == "Ville" and ville: sql += " AND LOWER(COALESCE(ville,''))=LOWER(?)"; params.append(ville)
-            elif level == "Territoire" and territoire: sql += " AND LOWER(COALESCE(territoire,''))=LOWER(?)"; params.append(territoire)
+            if level == "Ville" and ville:
+                sql += " AND LOWER(COALESCE(ville,''))=LOWER(?)"
+                params.append(ville)
+            elif level == "Territoire" and territoire:
+                sql += " AND LOWER(COALESCE(territoire,''))=LOWER(?)"
+                params.append(territoire)
             result = conn.execute(sql, params).fetchone()[0]
+            
     conn.close()
     return result
 
@@ -1751,10 +1779,13 @@ def _audit_scope_sql(alias="p"):
     secteur = AUDIT_CONTEXT.get("secteur_chefferie")
     groupement = AUDIT_CONTEXT.get("groupement")
     village = AUDIT_CONTEXT.get("village")
+    
     if level == "National" or not province:
         return "1=1", []
+        
     conditions = [f"LOWER(COALESCE({alias}.province, '')) = LOWER(?)"]
     params = [province]
+    
     if level in {"Ville", "Territoire"}:
         target = ville if level == "Ville" else territoire
         if target:
@@ -1771,6 +1802,7 @@ def _audit_scope_sql(alias="p"):
     elif level in {"Village", "Local"} and village:
         conditions.append(f"LOWER(COALESCE({alias}.localite, '')) = LOWER(?)")
         params.append(village)
+        
     return " AND ".join(conditions), params
 
 
@@ -1781,7 +1813,8 @@ def get_proprietaires():
         f"""SELECT DISTINCT pr.* FROM proprietaires pr
             LEFT JOIN parcelles p ON p.proprietaire_id = pr.id
             WHERE {scope}
-            ORDER BY pr.id DESC""", params
+            ORDER BY pr.id DESC""",
+        params
     ).fetchall()
     conn.close()
     return rows
@@ -1790,17 +1823,19 @@ def get_proprietaires():
 def get_parcelles():
     conn = db_connect()
     scope, params = _audit_scope_sql("p")
-    rows = conn.execute(f"""
+    rows = conn.execute(
+        f"""
         SELECT p.*, pr.nom_complet AS proprietaire
         FROM parcelles p
         LEFT JOIN proprietaires pr
             ON p.proprietaire_id = pr.id
         WHERE {scope}
         ORDER BY p.id DESC
-    """, params).fetchall()
+        """,
+        params
+    ).fetchall()
     conn.close()
     return rows
-
 
 # ============================================================
 # CALCUL DE SUPERFICIE
@@ -1870,7 +1905,6 @@ def parse_area(value):
 
     return result
 
-
 # ============================================================
 # SÉCURITÉ — HASH / VÉRIFICATION DES MOTS DE PASSE
 # ============================================================
@@ -1904,6 +1938,7 @@ def verify_password(password, salt_hex, hash_hex):
         return secrets.compare_digest(calculated.hex(), hash_hex)
     except Exception:
         return False
+
 
 # ============================================================
 # APPLICATION
@@ -1941,7 +1976,7 @@ def main(page: ft.Page):
     page.add(
         ft.Container(
             expand=True,
-            alignment=ft.Alignment.CENTER,
+            alignment=ft.alignment.center,
             bgcolor=COLOR_BG_LIGHT,
             content=ft.Column(
                 [ft.ProgressRing(), startup_message],
@@ -1964,7 +1999,7 @@ def main(page: ft.Page):
         page.add(
             ft.Container(
                 expand=True,
-                alignment=ft.Alignment.CENTER,
+                alignment=ft.alignment.center,
                 padding=30,
                 content=ft.Column(
                     [
@@ -2071,7 +2106,6 @@ def main(page: ft.Page):
         "Consultation": set(),
         "PUBLIC": set(),  # Aucune action de modification ou création pour le public
     }
-
     # --------------------------------------------------------
     # Téléversement des photos des propriétaires
     # --------------------------------------------------------
@@ -2186,15 +2220,24 @@ def main(page: ft.Page):
                 else COLOR_SURFACE
             ),
             border_radius=14,
-            border=ft.Border(left=ft.BorderSide(width=1, color="#334155"
-                if page.theme_mode == ft.ThemeMode.DARK
-                else COLOR_BORDER,), top=ft.BorderSide(width=1, color="#334155"
-                if page.theme_mode == ft.ThemeMode.DARK
-                else COLOR_BORDER,), right=ft.BorderSide(width=1, color="#334155"
-                if page.theme_mode == ft.ThemeMode.DARK
-                else COLOR_BORDER,), bottom=ft.BorderSide(width=1, color="#334155"
-                if page.theme_mode == ft.ThemeMode.DARK
-                else COLOR_BORDER,)),
+            border=ft.Border(
+                left=ft.BorderSide(
+                    width=1,
+                    color="#334155" if page.theme_mode == ft.ThemeMode.DARK else COLOR_BORDER,
+                ),
+                top=ft.BorderSide(
+                    width=1,
+                    color="#334155" if page.theme_mode == ft.ThemeMode.DARK else COLOR_BORDER,
+                ),
+                right=ft.BorderSide(
+                    width=1,
+                    color="#334155" if page.theme_mode == ft.ThemeMode.DARK else COLOR_BORDER,
+                ),
+                bottom=ft.BorderSide(
+                    width=1,
+                    color="#334155" if page.theme_mode == ft.ThemeMode.DARK else COLOR_BORDER,
+                ),
+            ),
             content=content_value,
         )
 
@@ -2205,7 +2248,7 @@ def main(page: ft.Page):
             color=color,
         )
 
-   # --------------------------------------------------------
+    # --------------------------------------------------------
     # Périmètre territorial de sécurité
     # --------------------------------------------------------
 
@@ -2273,14 +2316,20 @@ def main(page: ft.Page):
         order = {"National": 0, "Provincial": 1, "Ville": 2, "Territoire": 2, "Commune": 3, "Secteur": 4, "Chefferie": 4, "Groupement": 5, "Village": 6, "Local": 6}
         if order.get(level, 99) < order.get(current_level, 99):
             return False
-        if current_level == "Ville" and ville and str(ville).strip().lower() != str(current_user.get("ville") or "").strip().lower(): return False
-        if current_level == "Territoire" and territoire and str(territoire).strip().lower() != str(current_user.get("territoire") or "").strip().lower(): return False
-        if current_level == "Commune" and commune and str(commune).strip().lower() != str(current_user.get("commune") or "").strip().lower(): return False
-        if current_level in {"Secteur", "Chefferie"} and secteur and str(secteur).strip().lower() != str(current_user.get("secteur_chefferie") or "").strip().lower(): return False
-        if current_level == "Groupement" and groupement and str(groupement).strip().lower() != str(current_user.get("groupement") or "").strip().lower(): return False
-        if current_level in {"Village", "Local"} and village and str(village).strip().lower() != str(current_user.get("village") or "").strip().lower(): return False
-
-       # --------------------------------------------------------
+        if current_level == "Ville" and ville and str(ville).strip().lower() != str(current_user.get("ville") or "").strip().lower():
+            return False
+        if current_level == "Territoire" and territoire and str(territoire).strip().lower() != str(current_user.get("territoire") or "").strip().lower():
+            return False
+        if current_level == "Commune" and commune and str(commune).strip().lower() != str(current_user.get("commune") or "").strip().lower():
+            return False
+        if current_level in {"Secteur", "Chefferie"} and secteur and str(secteur).strip().lower() != str(current_user.get("secteur_chefferie") or "").strip().lower():
+            return False
+        if current_level == "Groupement" and groupement and str(groupement).strip().lower() != str(current_user.get("groupement") or "").strip().lower():
+            return False
+        if current_level in {"Village", "Local"} and village and str(village).strip().lower() != str(current_user.get("village") or "").strip().lower():
+            return False
+        return True
+      # --------------------------------------------------------
     # Dashboard
     # --------------------------------------------------------
 
@@ -2488,11 +2537,14 @@ def main(page: ft.Page):
             color=COLOR_TEXT_MUTED,
         )
 
+        # Initialisation unique et globale du FilePicker rattaché à la page
+        file_picker = ft.FilePicker()
+        page.overlay.append(file_picker)
+        page.update()
+
         async def choisir_photo(_):
             try:
-                picker = ft.FilePicker()
-
-                files = await picker.pick_files(
+                files = await file_picker.pick_files(
                     allow_multiple=False,
                     file_type=ft.FilePickerFileType.CUSTOM,
                     allowed_extensions=[
@@ -2522,7 +2574,7 @@ def main(page: ft.Page):
                     f"proprietaires/{safe_name}"
                 )
 
-                await picker.upload(
+                await file_picker.upload(
                     [
                         ft.FilePickerUploadFile(
                             name=selected.name,
@@ -2806,7 +2858,6 @@ def main(page: ft.Page):
         )
 
         load_table()
-   
     # --------------------------------------------------------
     # Parcelles
     # --------------------------------------------------------
@@ -2860,10 +2911,14 @@ def main(page: ft.Page):
             color=COLOR_PRIMARY,
         )
 
+        # Initialisation unique et globale du FilePicker rattaché à la page
+        file_picker_parcelle = ft.FilePicker()
+        page.overlay.append(file_picker_parcelle)
+        page.update()
+
         async def activer_saisie_photo(_):
             try:
-                picker = ft.FilePicker()
-                files = await picker.pick_files(
+                files = await file_picker_parcelle.pick_files(
                     allow_multiple=False,
                     file_type=ft.FilePickerFileType.CUSTOM,
                     allowed_extensions=["jpg", "jpeg", "png", "webp"],
@@ -2876,7 +2931,7 @@ def main(page: ft.Page):
                 ext = os.path.splitext(selected.name)[1].lower()
                 safe_name = f"proprietaire_{uuid.uuid4().hex}{ext}"
                 upload_path = f"proprietaires/{safe_name}"
-                await picker.upload([
+                await file_picker_parcelle.upload([
                     ft.FilePickerUploadFile(
                         name=selected.name,
                         id=selected.id,
@@ -3130,7 +3185,6 @@ def main(page: ft.Page):
                     snack(t("access_denied"), True); return
                 if _level in {"Village", "Local"} and localite.value.strip().lower() != str(current_user.get("village") or "").strip().lower():
                     snack(t("access_denied"), True); return
-
             # ----------------------------------------------------
             # Vérification préalable et rattachement propriétaire
             # ----------------------------------------------------
@@ -5055,926 +5109,323 @@ def main(page: ft.Page):
 
             page.update()
 
-        # --------------------------------------------------------
-        # Construction interface Mutations
-        # --------------------------------------------------------
+        # ================================================
+                # CARTE / BLOC D'AFFICHAGE DU RÉSULTAT
+                # ================================================
 
-        content.content = ft.Column(
-            [
-                title(
-                    t("transfers_title"),
-                    t("transfers_subtitle"),
-                ),
+                btn_telecharger = ft.ElevatedButton(
+                    t("download_certificate") if "download_certificate" in TRANSLATIONS.get(language, {}) else "Télécharger le certificat",
+                    icon=ft.Icons.PICTURE_IN_PICTURE,
+                    on_click=lambda e, r=row: page.run_task(telecharger_certificat_recherche, r),
+                )
 
-                ft.Divider(),
-
-                panel(
+                carte_resultat = panel(
                     ft.Column(
                         [
-                            # ------------------------------------
-                            # Parcelle / ancien propriétaire
-                            # ------------------------------------
-
+                            # En-tête de la parcelle
                             ft.Row(
                                 [
-                                    ft.Column(
-                                        [
-                                            recherche_parcelle,
-                                            info_parcelle,
-                                            suggestions_parcelles,
-                                        ],
-                                        expand=True,
-                                    ),
-
-                                    ft.Column(
-                                        [
-                                            recherche_ancien,
-                                            info_ancien,
-                                            suggestions_anciens,
-                                        ],
-                                        expand=True,
-                                    ),
-                                ]
-                            ),
-
-                            # ------------------------------------
-                            # Nouveau propriétaire
-                            # ------------------------------------
-
-                            ft.Text(
-                                t("new_owner"),
-                                size=15,
-                                weight=(
-                                    ft.FontWeight.BOLD
-                                ),
-                            ),
-
-                            ft.Row(
-                                [
-                                    nom_nouveau,
-                                    cni_nouveau,
-                                ]
-                            ),
-
-                            # ------------------------------------
-                            # Téléphone + photo
-                            # ------------------------------------
-
-                            ft.Row(
-                                [
-                                    tel_nouveau,
-                                    photo_nouveau,
-                                    btn_parcourir,
-                                ]
-                            ),
-
-                            # ------------------------------------
-                            # Transaction
-                            # ------------------------------------
-
-                            ft.Row(
-                                [
-                                    type_trans,
-                                    reference,
-                                ]
-                            ),
-
-                            # ------------------------------------
-                            # Prix / agent
-                            # ------------------------------------
-
-                            ft.Row(
-                                [
-                                    prix,
-                                    agent,
-                                ]
-                            ),
-
-                            # ------------------------------------
-                            # Enregistrer mutation
-                            # ------------------------------------
-
-                            ft.ElevatedButton(
-                                t(
-                                    "save_transfer"
-                                ),
-                                icon=(
-                                    ft.Icons.SWAP_HORIZ
-                                ),
-                                on_click=(
-                                    cliquer_enregistrer_mutation
-                                ),
-                            ),
-                        ],
-                        spacing=10,
-                    )
-                ),
-
-                # --------------------------------------------
-                # Tableau des mutations
-                # --------------------------------------------
-
-                panel(
-                    table
-                ),
-            ],
-
-            spacing=12,
-
-            scroll=ft.ScrollMode.AUTO,
-        )
-
-        # --------------------------------------------------------
-        # Chargement initial
-        # --------------------------------------------------------
-
-        load_table()
-    # --------------------------------------------------------
-    # Recherche / vérification
-    # --------------------------------------------------------
-
-    def verification_view():
-        nonlocal current_route
-        current_route = "verification"
-
-        recherche = text_field(
-            t("search_reference")
-        )
-
-        résultat = ft.Column(
-            spacing=12
-        )
-
-        def afficher_ligne(label, value):
-            """
-            Affiche une ligne d'information de manière uniforme.
-            """
-            return ft.Row(
-                [
-                    ft.Text(
-                        f"{label} :",
-                        width=180,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                    ft.Text(
-                        str(value) if value not in (None, "") else "—",
-                        expand=True,
-                    ),
-                ],
-                spacing=8,
-            )
-
-        def afficher_photo(photo_path):
-            """
-            Prépare l'affichage de la photo du propriétaire.
-
-            Le champ photo peut contenir par exemple :
-            /uploads/proprietaires/xxxx.jpg
-            """
-
-            photo_path = _cad_public_upload_url(photo_path)
-
-            if not photo_path:
-                return ft.Container(
-                    width=180,
-                    height=180,
-                    border_radius=12,
-                    bgcolor=(
-                        "#243244"
-                        if page.theme_mode == ft.ThemeMode.DARK
-                        else "#F1F5F9"
-                    ),
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Column(
-                        [
-                            ft.Icon(
-                                ft.Icons.PERSON,
-                                size=60,
-                                color=COLOR_TEXT_MUTED,
-                            ),
-                            ft.Text(
-                                t("no_photo")
-                                if "no_photo" in TRANSLATIONS.get(
-                                    language,
-                                    {}
-                                )
-                                else "Aucune photo",
-                                size=12,
-                                color=COLOR_TEXT_MUTED,
-                                text_align=ft.TextAlign.CENTER,
-                            ),
-                        ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                )
-
-            try:
-                return ft.Container(
-                    width=180,
-                    height=180,
-                    border_radius=12,
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    content=ft.Image(
-                        src=photo_path,
-                        width=180,
-                        height=180,
-                        fit=ft.BoxFit.COVER,
-                    ),
-                )
-
-            except Exception:
-                return ft.Container(
-                    width=180,
-                    height=180,
-                    border_radius=12,
-                    bgcolor=(
-                        "#3F1D24"
-                        if page.theme_mode == ft.ThemeMode.DARK
-                        else "#FEF2F2"
-                    ),
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Column(
-                        [
-                            ft.Icon(
-                                ft.Icons.BROKEN_IMAGE,
-                                size=50,
-                                color=COLOR_ACCENT,
-                            ),
-                            ft.Text(
-                                "Photo indisponible",
-                                size=12,
-                                color=COLOR_ACCENT,
-                                text_align=ft.TextAlign.CENTER,
-                            ),
-                        ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                )
-
-        async def telecharger_certificat_recherche(row):
-            """Génère puis télécharge le certificat officiel de la parcelle trouvée."""
-            try:
-                row_dict = dict(row)
-                parcel_id = row_dict.get("id")
-                owner_id = row_dict.get("proprietaire_id")
-
-                if not parcel_id or not owner_id:
-                    snack("Échec : propriétaire ou parcelle introuvable.", True)
-                    return
-
-                conn = db_connect()
-                try:
-                    parcel_db = conn.execute(
-                        "SELECT * FROM parcelles WHERE id = ? LIMIT 1",
-                        (parcel_id,),
-                    ).fetchone()
-                    owner_db = conn.execute(
-                        "SELECT * FROM proprietaires WHERE id = ? LIMIT 1",
-                        (owner_id,),
-                    ).fetchone()
-                finally:
-                    conn.close()
-
-                if not parcel_db:
-                    snack("Échec : parcelle introuvable dans cadastre_rdc.db.", True)
-                    return
-                if not owner_db:
-                    snack("Échec : propriétaire introuvable dans cadastre_rdc.db.", True)
-                    return
-
-                snack("Génération du certificat en cours…", False)
-                page.update()
-
-                pdf_path, numero_certificat, token = generer_certificat_enregistrement_complet_pdf(
-                    dict(owner_db), dict(parcel_db)
-                )
-
-                with open(pdf_path, "rb") as fh:
-                    pdf_bytes = fh.read()
-
-                filename = os.path.basename(pdf_path)
-                # Flet Web : src_bytes est obligatoire et déclenche le téléchargement
-                # dans le navigateur. Desktop : le même appel ouvre le choix du fichier.
-                saved = await certificate_file_picker.save_file(
-                    dialog_title="Télécharger le certificat d'enregistrement parcellaire",
-                    file_name=filename,
-                    allowed_extensions=["pdf"],
-                    src_bytes=pdf_bytes,
-                )
-
-                if isinstance(saved, str) and saved:
-                    # Desktop/native : Flet écrit déjà src_bytes à l'emplacement choisi.
-                    destination = saved
-                    message = f"✓ Certificat téléchargé : {destination}"
-                elif page.web:
-                    # Web : le navigateur vient de recevoir le PDF.
-                    message = f"✓ Téléchargement lancé : {filename}"
-                else:
-                    message = f"✓ Certificat généré : {pdf_path}"
-
-                snack(message, False)
-                try:
-                    journaliser(
-                        "TELECHARGEMENT_CERTIFICAT_ENREGISTREMENT",
-                        f"Certificat {numero_certificat} — parcelle {row_dict.get('numero') or parcel_id} — propriétaire {owner_id}",
-                    )
-                except Exception:
-                    pass
-
-            except Exception as ex:
-                snack(f"✗ Échec du certificat : {ex}", True)
-            finally:
-                page.update()
-
-        def search():
-
-            q = (
-                recherche.value
-                .strip()
-                .lower()
-            )
-
-            if not q:
-                snack(
-                    t("search_reference"),
-                    True,
-                )
-                return
-
-            résultat.controls.clear()
-
-            conn = db_connect()
-
-            try:
-                # ------------------------------------------------
-                # Recherche complète :
-                # parcelle + propriétaire
-                # ------------------------------------------------
-
-                scope_sql, scope_params = territorial_scope_sql("p")
-                rows = conn.execute(
-                    f"""
-                    SELECT
-                        p.*,
-
-                        pr.id AS proprietaire_id,
-                        pr.nom_complet AS proprietaire_nom,
-                        pr.telephone AS proprietaire_telephone,
-                        pr.email AS proprietaire_email,
-                        pr.piece_identite AS proprietaire_piece_identite,
-                        pr.photo AS proprietaire_photo,
-                        pr.date_creation AS proprietaire_date_creation
-
-                    FROM parcelles p
-
-                    LEFT JOIN proprietaires pr
-                        ON p.proprietaire_id = pr.id
-
-                    WHERE
-                        (
-                            CAST(p.id AS TEXT) = ?
-                            OR LOWER(COALESCE(p.numero, '')) LIKE ?
-                            OR LOWER(COALESCE(p.adresse, '')) LIKE ?
-                            OR LOWER(COALESCE(pr.nom_complet, '')) LIKE ?
-                            OR LOWER(COALESCE(pr.telephone, '')) LIKE ?
-                            OR LOWER(COALESCE(pr.piece_identite, '')) LIKE ?
-                            OR LOWER(COALESCE(p.province, '')) LIKE ?
-                            OR LOWER(COALESCE(p.ville_territoire, '')) LIKE ?
-                            OR LOWER(COALESCE(p.commune_chefferie, '')) LIKE ?
-                            OR LOWER(COALESCE(p.quartier_groupement, '')) LIKE ?
-                            OR LOWER(COALESCE(p.localite, '')) LIKE ?
-                            OR LOWER(COALESCE(p.agent, '')) LIKE ?
-                        )
-
-                    AND ({scope_sql})
-
-                    ORDER BY p.id DESC
-                    """,
-                    (
-                        q,
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                        f"%{q}%",
-                    ) + tuple(scope_params),
-                ).fetchall()
-
-            except Exception as ex:
-
-                conn.close()
-
-                résultat.controls.append(
-                    ft.Container(
-                        padding=20,
-                        border_radius=14,
-                        bgcolor=(
-                            "#3F1D24"
-                            if page.theme_mode
-                            == ft.ThemeMode.DARK
-                            else "#FEF2F2"
-                        ),
-                        content=ft.Column(
-                            [
-                                ft.Icon(
-                                    ft.Icons.ERROR_OUTLINE,
-                                    color=COLOR_ACCENT,
-                                    size=35,
-                                ),
-                                ft.Text(
-                                    f"{t('error')} : {ex}",
-                                    color=COLOR_ACCENT,
-                                ),
-                            ],
-                            spacing=8,
-                        ),
-                    )
-                )
-
-                page.update()
-                return
-
-            conn.close()
-
-            # ----------------------------------------------------
-            # Aucun résultat
-            # ----------------------------------------------------
-
-            if not rows:
-
-                résultat.controls.append(
-                    ft.Container(
-                        padding=20,
-                        border_radius=14,
-                        bgcolor=(
-                            "#3F1D24"
-                            if page.theme_mode
-                            == ft.ThemeMode.DARK
-                            else "#FEF2F2"
-                        ),
-                        content=ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.SEARCH_OFF,
-                                    color=COLOR_ACCENT,
-                                    size=30,
-                                ),
-                                ft.Text(
-                                    t("no_results"),
-                                    color=COLOR_ACCENT,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                            ],
-                            spacing=12,
-                        ),
-                    )
-                )
-
-                page.update()
-                return
-
-            # ----------------------------------------------------
-            # Affichage des résultats
-            # ----------------------------------------------------
-
-            for row in rows:
-
-                # ================================================
-                # INFORMATIONS PROPRIÉTAIRE
-                # ================================================
-
-                proprietaire_nom = (
-                    row["proprietaire_nom"]
-                    or "—"
-                )
-
-                proprietaire_telephone = (
-                    row["proprietaire_telephone"]
-                    or "—"
-                )
-
-                proprietaire_email = (
-                    row["proprietaire_email"]
-                    or "—"
-                )
-
-                proprietaire_piece = (
-                    row["proprietaire_piece_identite"]
-                    or "—"
-                )
-
-                proprietaire_photo = (
-                    row["proprietaire_photo"]
-                    or ""
-                )
-
-                proprietaire_id = (
-                    row["proprietaire_id"]
-                    or "—"
-                )
-
-                proprietaire_date = (
-                    row["proprietaire_date_creation"]
-                    or "—"
-                )
-
-                # ================================================
-                # INFORMATIONS PARCELLE
-                # ================================================
-
-                numero = (
-                    row["numero"]
-                    or "—"
-                )
-
-                statut = (
-                    row["statut"]
-                    or "—"
-                )
-
-                superficie = (
-                    row["superficie"]
-                    if row["superficie"] is not None
-                    else 0
-                )
-
-                adresse = (
-                    row["adresse"]
-                    or "—"
-                )
-
-                province = (
-                    row["province"]
-                    or "—"
-                )
-
-                ville_territoire = (
-                    row["ville_territoire"]
-                    or "—"
-                )
-
-                localite = (
-                    row["localite"]
-                    or "—"
-                )
-
-                latitude = (
-                    row["latitude"]
-                    if row["latitude"] is not None
-                    else "—"
-                )
-
-                longitude = (
-                    row["longitude"]
-                    if row["longitude"] is not None
-                    else "—"
-                )
-
-                # ================================================
-                # PHOTO DU PROPRIÉTAIRE
-                # ================================================
-
-                photo_widget = afficher_photo(
-                    proprietaire_photo
-                )
-
-                # ================================================
-                # BLOC PROPRIÉTAIRE
-                # ================================================
-
-                bloc_proprietaire = panel(
-                    ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Icon(
-                                        ft.Icons.PERSON,
-                                        color=COLOR_PRIMARY,
-                                        size=28,
-                                    ),
+                                    ft.Icon(ft.Icons.LANDSCAPE, color=COLOR_PRIMARY, size=28),
                                     ft.Text(
-                                        "INFORMATIONS DU PROPRIÉTAIRE",
+                                        f"Parcelle N° {numero}",
                                         size=18,
                                         weight=ft.FontWeight.BOLD,
                                     ),
+                                    ft.Container(expand=True),
+                                    badge_statut(statut),
                                 ],
-                                spacing=10,
+                                alignment=ft.MainAxisAlignment.CENTER,
                             ),
-
                             ft.Divider(),
 
+                            # Contenu principal : Photo + Détails
                             ft.Row(
                                 [
-                                    photo_widget,
-
+                                    # Colonne photo à gauche
                                     ft.Column(
                                         [
-                                            afficher_ligne(
-                                                t("id"),
-                                                proprietaire_id,
-                                            ),
-
-                                            afficher_ligne(
-                                                t("full_name"),
-                                                proprietaire_nom,
-                                            ),
-
-                                            afficher_ligne(
-                                                t("phone"),
-                                                proprietaire_telephone,
-                                            ),
-
-                                            afficher_ligne(
-                                                t("email"),
-                                                proprietaire_email,
-                                            ),
-
-                                            afficher_ligne(
-                                                t("identity"),
-                                                proprietaire_piece,
-                                            ),
-
-                                            afficher_ligne(
-                                                "Date de création",
-                                                proprietaire_date,
+                                            photo_widget,
+                                            ft.Text(
+                                                f"ID Proprio: #{proprietaire_id}",
+                                                size=11,
+                                                color=COLOR_TEXT_MUTED,
                                             ),
                                         ],
-                                        spacing=8,
+                                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                        spacing=6,
+                                    ),
+                                    
+                                    # Détails à droite (Propriétaire + Parcelle)
+                                    ft.Column(
+                                        [
+                                            ft.Text(
+                                                "Propriétaire Actuel",
+                                                size=14,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=COLOR_PRIMARY,
+                                            ),
+                                            afficher_ligne("Nom complet", proprietaire_nom),
+                                            afficher_ligne("Pièce d'identité", proprietaire_piece),
+                                            afficher_ligne("Téléphone", proprietaire_telephone),
+                                            afficher_ligne("Email", proprietaire_email),
+                                            
+                                            ft.Container(height=8),
+                                            ft.Text(
+                                                "Localisation & Caractéristiques",
+                                                size=14,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=COLOR_PRIMARY,
+                                            ),
+                                            afficher_ligne("Adresse", adresse),
+                                            afficher_ligne("Province / Ville", f"{province} / {ville_territoire}"),
+                                            afficher_ligne("Localité", localite),
+                                            afficher_ligne("Superficie", f"{superficie} m²"),
+                                            afficher_ligne("Coordonnées GPS", f"{latitude}, {longitude}"),
+                                        ],
                                         expand=True,
+                                        spacing=4,
                                     ),
                                 ],
+                                cross_alignment=ft.CrossAxisAlignment.START,
                                 spacing=20,
-                                vertical_alignment=(
-                                    ft.CrossAxisAlignment.START
-                                ),
+                            ),
+
+                            ft.Divider(),
+
+                            # Actions / Boutons bas de carte
+                            ft.Row(
+                                [
+                                    btn_telecharger,
+                                ],
+                                alignment=ft.MainAxisAlignment.END,
                             ),
                         ],
                         spacing=10,
                     )
                 )
 
-                # ================================================
-                # BLOC PARCELLE
-                # ================================================
-
-                bloc_parcelle = panel(
-                    ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Icon(
-                                        ft.Icons.LANDSCAPE,
-                                        color=COLOR_PRIMARY,
-                                        size=28,
-                                    ),
-                                    ft.Text(
-                                        "INFORMATIONS DE LA PARCELLE",
-                                        size=18,
-                                        weight=ft.FontWeight.BOLD,
-                                    ),
-                                ],
-                                spacing=10,
-                            ),
-
-                            ft.Divider(),
-
-                            afficher_ligne(
-                                t("id"),
-                                row["id"],
-                            ),
-
-                            afficher_ligne(
-                                t("parcel"),
-                                numero,
-                            ),
-
-                            afficher_ligne(
-                                t("status"),
-                                statut,
-                            ),
-
-                            afficher_ligne(
-                                t("area_short"),
-                                f"{float(superficie):.2f} cm²",
-                            ),
-
-                            afficher_ligne(
-                                t("address")
-                                if "address"
-                                in TRANSLATIONS.get(
-                                    language,
-                                    {}
-                                )
-                                else "Adresse",
-                                adresse,
-                            ),
-
-                            afficher_ligne(
-                                "Province",
-                                province,
-                            ),
-
-                            afficher_ligne(
-                                "Ville / Territoire",
-                                ville_territoire,
-                            ),
-
-                            afficher_ligne(
-                                "Localité",
-                                localite,
-                            ),
-
-                            afficher_ligne(
-                                "Commune / Chefferie",
-                                row["commune_chefferie"] or "—",
-                            ),
-
-                            afficher_ligne(
-                                "Quartier / Groupement",
-                                row["quartier_groupement"] or "—",
-                            ),
-
-                            afficher_ligne(
-                                t("gps_label"),
-                                f"{latitude}, {longitude}",
-                            ),
-                        ],
-                        spacing=8,
-                    )
-                )
-
-                # ================================================
-                # BLOC VÉRIFICATION
-                # ================================================
-
-                bloc_verification = ft.Container(
-                    padding=15,
-                    border_radius=12,
-                    bgcolor=(
-                        "#14532D"
-                        if page.theme_mode
-                        == ft.ThemeMode.DARK
-                        else "#F0FDF4"
-                    ),
-                    border=ft.Border(
-                        left=ft.BorderSide(
-                            width=1,
-                            color=ft.Colors.GREEN_700,
-                        ),
-                        top=ft.BorderSide(
-                            width=1,
-                            color=ft.Colors.GREEN_700,
-                        ),
-                        right=ft.BorderSide(
-                            width=1,
-                            color=ft.Colors.GREEN_700,
-                        ),
-                        bottom=ft.BorderSide(
-                            width=1,
-                            color=ft.Colors.GREEN_700,
-                        ),
-                    ),
-                    content=ft.Row(
-                        [
-                            ft.Icon(
-                                ft.Icons.VERIFIED,
-                                color=ft.Colors.GREEN_700,
-                                size=30,
-                            ),
-                            ft.Column(
-                                [
-                                    ft.Text(
-                                        "VÉRIFICATION RÉUSSIE",
-                                        weight=ft.FontWeight.BOLD,
-                                        color=ft.Colors.GREEN_700,
-                                        size=16,
-                                    ),
-                                    ft.Text(
-                                        t("verification_found"),
-                                        color=ft.Colors.GREEN_700,
-                                    ),
-                                ],
-                                spacing=3,
-                            ),
-                        ],
-                        spacing=12,
-                    ),
-                )
-
-                # ================================================
-                # RÉSULTAT COMPLET
-                # ================================================
-
-                résultat.controls.append(
-                    ft.Column(
-                        [
-                            bloc_verification,
-
-                            ft.Text(
-                                f"{t('parcel').upper()} "
-                                f"{numero}",
-                                size=22,
-                                weight=ft.FontWeight.BOLD,
-                                color=COLOR_PRIMARY,
-                            ),
-
-                            bloc_proprietaire,
-
-                            bloc_parcelle,
-
-                            # Bouton demandé : immédiatement sous les résultats
-                            # Agent / Administration. Il génère un PDF complet
-                            # avec propriétaire + photo + parcelle + QR.
-                            ft.Container(
-                                padding=12,
-                                border_radius=12,
-                                bgcolor=(
-                                    "#10233F"
-                                    if page.theme_mode == ft.ThemeMode.DARK
-                                    else "#EFF6FF"
-                                ),
-                                border=ft.Border.all(1, COLOR_PRIMARY),
-                                content=ft.Row(
-                                    [
-                                        ft.Icon(
-                                            ft.Icons.PICTURE_AS_PDF,
-                                            color=COLOR_PRIMARY,
-                                            size=28,
-                                        ),
-                                        ft.Column(
-                                            [
-                                                ft.Text(
-                                                    "CERTIFICAT D'ENREGISTREMENT PARCELLAIRE",
-                                                    weight=ft.FontWeight.BOLD,
-                                                    color=COLOR_PRIMARY,
-                                                ),
-                                                ft.Text(
-                                                    "Propriétaire + photo + toutes les informations de la parcelle + code QR de vérification.",
-                                                    size=11,
-                                                    color=COLOR_TEXT_MUTED,
-                                                ),
-                                            ],
-                                            spacing=3,
-                                            expand=True,
-                                        ),
-                                        ft.ElevatedButton(
-                                            "Télécharger le certificat",
-                                            icon=ft.Icons.DOWNLOAD,
-                                            on_click=lambda e, r=dict(row): page.run_task(
-                                                telecharger_certificat_recherche, r
-                                            ),
-                                            style=ft.ButtonStyle(
-                                                bgcolor=COLOR_PRIMARY,
-                                                color=ft.Colors.WHITE,
-                                                padding=ft.Padding(16, 12, 16, 12),
-                                                shape=ft.RoundedRectangleBorder(radius=8),
-                                            ),
-                                        ),
-                                    ],
-                                    spacing=12,
-                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                                ),
-                            ),
-                        ],
-                        spacing=12,
-                    )
-                )
-
-            # ----------------------------------------------------
-            # Journal de sécurité
-            # ----------------------------------------------------
-
-            try:
-                journaliser(
-                    "VERIFICATION_CADASTRALE",
-                    f"Recherche effectuée : {q}",
-                )
-            except Exception:
-                pass
+                résultat.controls.append(carte_resultat)
 
             page.update()
 
-        recherche.on_submit = (
-            lambda e: search()
+       # --------------------------------------------------------
+        # Construction interface Recherche / Vérification
+        # --------------------------------------------------------
+
+        # ================================================
+        # BLOC PROPRIÉTAIRE
+        # ================================================
+        bloc_proprietaire = panel(
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Icon(
+                                ft.Icons.PERSON,
+                                color=COLOR_PRIMARY,
+                                size=28,
+                            ),
+                            ft.Text(
+                                "INFORMATIONS DU PROPRIÉTAIRE",
+                                size=18,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                    ft.Divider(),
+                    ft.Row(
+                        [
+                            photo_widget,
+                            ft.Column(
+                                [
+                                    afficher_ligne(t("id"), proprietaire_id),
+                                    afficher_ligne(t("full_name"), proprietaire_nom),
+                                    afficher_ligne(t("phone"), proprietaire_telephone),
+                                    afficher_ligne(t("email"), proprietaire_email),
+                                    afficher_ligne(t("identity"), proprietaire_piece),
+                                    afficher_ligne("Date de création", proprietaire_date),
+                                ],
+                                spacing=8,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=20,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                ],
+                spacing=10,
+            )
         )
+
+        # ================================================
+        # BLOC PARCELLE
+        # ================================================
+        bloc_parcelle = panel(
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Icon(
+                                ft.Icons.LANDSCAPE,
+                                color=COLOR_PRIMARY,
+                                size=28,
+                            ),
+                            ft.Text(
+                                "INFORMATIONS DE LA PARCELLE",
+                                size=18,
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                    ft.Divider(),
+                    afficher_ligne(t("id"), row["id"]),
+                    afficher_ligne(t("parcel"), numero),
+                    afficher_ligne(t("status"), statut),
+                    afficher_ligne(t("area_short"), f"{float(superficie):.2f} cm²"),
+                    afficher_ligne(
+                        t("address") if "address" in TRANSLATIONS.get(language, {}) else "Adresse",
+                        adresse,
+                    ),
+                    afficher_ligne("Province", province),
+                    afficher_ligne("Ville / Territoire", ville_territoire),
+                    afficher_ligne("Localité", localite),
+                    afficher_ligne("Commune / Chefferie", row["commune_chefferie"] or "—"),
+                    afficher_ligne("Quartier / Groupement", row["quartier_groupement"] or "—"),
+                    afficher_ligne(t("gps_label"), f"{latitude}, {longitude}"),
+                ],
+                spacing=8,
+            )
+        )
+
+        # ================================================
+        # BLOC VÉRIFICATION
+        # ================================================
+        bloc_verification = ft.Container(
+            padding=15,
+            border_radius=12,
+            bgcolor=(
+                "#14532D" if page.theme_mode == ft.ThemeMode.DARK else "#F0FDF4"
+            ),
+            border=ft.border.all(1, ft.Colors.GREEN_700),
+            content=ft.Row(
+                [
+                    ft.Icon(
+                        ft.Icons.VERIFIED,
+                        color=ft.Colors.GREEN_700,
+                        size=30,
+                    ),
+                    ft.Column(
+                        [
+                            ft.Text(
+                                "VÉRIFICATION RÉUSSIE",
+                                weight=ft.FontWeight.BOLD,
+                                color=ft.Colors.GREEN_700,
+                                size=16,
+                            ),
+                            ft.Text(
+                                t("verification_found"),
+                                color=ft.Colors.GREEN_700,
+                            ),
+                        ],
+                        spacing=3,
+                    ),
+                ],
+                spacing=12,
+            ),
+        )
+
+        # ================================================
+        # RÉSULTAT COMPLET
+        # ================================================
+        résultat.controls.clear()
+        résultat.controls.append(
+            ft.Column(
+                [
+                    bloc_verification,
+                    ft.Text(
+                        f"{t('parcel').upper()} {numero}",
+                        size=22,
+                        weight=ft.FontWeight.BOLD,
+                        color=COLOR_PRIMARY,
+                    ),
+                    bloc_proprietaire,
+                    bloc_parcelle,
+                    # Bouton certificat PDF
+                    ft.Container(
+                        padding=12,
+                        border_radius=12,
+                        bgcolor=(
+                            "#10233F" if page.theme_mode == ft.ThemeMode.DARK else "#EFF6FF"
+                        ),
+                        border=ft.border.all(1, COLOR_PRIMARY),
+                        content=ft.Row(
+                            [
+                                ft.Icon(
+                                    ft.Icons.PICTURE_AS_PDF,
+                                    color=COLOR_PRIMARY,
+                                    size=28,
+                                ),
+                                ft.Column(
+                                    [
+                                        ft.Text(
+                                            "CERTIFICAT D'ENREGISTREMENT PARCELLAIRE",
+                                            weight=ft.FontWeight.BOLD,
+                                            color=COLOR_PRIMARY,
+                                        ),
+                                        ft.Text(
+                                            "Propriétaire + photo + toutes les informations de la parcelle + code QR de vérification.",
+                                            size=11,
+                                            color=COLOR_TEXT_MUTED,
+                                        ),
+                                    ],
+                                    spacing=3,
+                                    expand=True,
+                                ),
+                                ft.ElevatedButton(
+                                    "Télécharger le certificat",
+                                    icon=ft.Icons.DOWNLOAD,
+                                    on_click=lambda e, r=dict(row): page.run_task(
+                                        telecharger_certificat_recherche, r
+                                    ),
+                                    style=ft.ButtonStyle(
+                                        bgcolor=COLOR_PRIMARY,
+                                        color=ft.Colors.WHITE,
+                                        padding=ft.padding.symmetric(horizontal=16, vertical=12),
+                                        shape=ft.RoundedRectangleBorder(radius=8),
+                                    ),
+                                ),
+                            ],
+                            spacing=12,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                    ),
+                ],
+                spacing=12,
+            )
+        )
+
+        # ----------------------------------------------------
+        # Journal de sécurité
+        # ----------------------------------------------------
+        try:
+            journaliser(
+                "VERIFICATION_CADASTRALE",
+                f"Recherche effectuée : {q}",
+            )
+        except Exception:
+            pass
+
+        recherche.on_submit = lambda e: search()
 
         content.content = ft.Column(
             [
                 title(
-                    t("verification_title"),
-                    t("verification_subtitle"),
+                    t("verification_title") if "verification_title" in TRANSLATIONS.get(language, {}) else "Vérification",
+                    t("verification_subtitle") if "verification_subtitle" in TRANSLATIONS.get(language, {}) else "Résultats de la vérification",
                 ),
-
                 ft.Divider(),
-
                 panel(
                     ft.Row(
                         [
@@ -5983,13 +5434,13 @@ def main(page: ft.Page):
                                 expand=True,
                             ),
                             ft.ElevatedButton(
-                                t("search_button"),
+                                t("search_button") if "search_button" in TRANSLATIONS.get(language, {}) else "Rechercher",
                                 icon=ft.Icons.SEARCH,
                                 on_click=lambda e: search(),
                                 style=ft.ButtonStyle(
                                     bgcolor=COLOR_PRIMARY,
                                     color=ft.Colors.WHITE,
-                                    padding=ft.Padding(left=20, top=15, right=20, bottom=15),
+                                    padding=ft.padding.symmetric(horizontal=20, vertical=15),
                                     shape=ft.RoundedRectangleBorder(radius=8),
                                 ),
                             ),
@@ -5998,512 +5449,506 @@ def main(page: ft.Page):
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     )
                 ),
-
                 résultat,
             ],
-
             spacing=12,
-
             scroll=ft.ScrollMode.AUTO,
         )
 
         page.update()
-
    # --------------------------------------------------------
-    # Administration territoriale
-    # --------------------------------------------------------
+        # Administration territoriale
+        # --------------------------------------------------------
 
-    def territoires_view():
-        nonlocal current_route
-        current_route = "territoires"
+        def territoires_view():
+            nonlocal current_route
+            current_route = "territoires"
 
-        type_structure = ft.Dropdown(
-            label=t("structure_type"),
-            value="Province",
-            options=[
-                ft.dropdown.Option("Province", t("province")),
-                ft.dropdown.Option("Ville", t("city")),
-                ft.dropdown.Option("Territoire", t("territory")),
-                ft.dropdown.Option("Commune", t("commune")),
-                ft.dropdown.Option("Secteur", t("sector_chiefdom")),
-                ft.dropdown.Option("Chefferie", t("sector_chiefdom")),
-                ft.dropdown.Option("Groupement", t("grouping")),
-                ft.dropdown.Option("Village", t("village")),
-            ],
-            border_radius=14, border_color=COLOR_BORDER, expand=True,
-        )
-        code = text_field(t("structure_code"))
-        nom = text_field(t("structure_name") + " *")
-        parent = text_field(t("parent_structure"))
-        recherche = text_field(t("search"))
-        table = ft.Column(spacing=4)
+            type_structure = ft.Dropdown(
+                label=t("structure_type"),
+                value="Province",
+                options=[
+                    ft.dropdown.Option("Province", t("province")),
+                    ft.dropdown.Option("Ville", t("city")),
+                    ft.dropdown.Option("Territoire", t("territory")),
+                    ft.dropdown.Option("Commune", t("commune")),
+                    ft.dropdown.Option("Secteur", t("sector_chiefdom")),
+                    ft.dropdown.Option("Chefferie", t("sector_chiefdom")),
+                    ft.dropdown.Option("Groupement", t("grouping")),
+                    ft.dropdown.Option("Village", t("village")),
+                ],
+                border_radius=14, border_color=COLOR_BORDER, expand=True,
+            )
+            code = text_field(t("structure_code"))
+            nom = text_field(t("structure_name") + " *")
+            parent = text_field(t("parent_structure"))
+            recherche = text_field(t("search"))
+            table = ft.Column(spacing=4)
 
-        # ----------------------------------------------------
-        # Départements de la Direction Générale / provinces
-        # ----------------------------------------------------
-        departement_nom = text_field(t("department") + " *")
-        departement_province = text_field(t("province"))
-        departement_table = ft.Column(spacing=4)
+            # ----------------------------------------------------
+            # Départements de la Direction Générale / provinces
+            # ----------------------------------------------------
+            departement_nom = text_field(t("department") + " *")
+            departement_province = text_field(t("province"))
+            departement_table = ft.Column(spacing=4)
 
-        if str(current_user.get("niveau_acces") or "National") != "National":
-            departement_province.value = current_user.get("province") or ""
+            if str(current_user.get("niveau_acces") or "National") != "National":
+                departement_province.value = current_user.get("province") or ""
 
-        def load_departements():
-            conn = db_connect()
-            rows = conn.execute("SELECT * FROM departements ORDER BY province, nom").fetchall()
-            conn.close()
-            departement_table.controls.clear()
-            departement_table.controls.append(ft.Row([
-                ft.Text(t("id"), width=50, weight=ft.FontWeight.BOLD),
-                ft.Text(t("department"), width=260, weight=ft.FontWeight.BOLD),
-                ft.Text(t("province"), width=200, weight=ft.FontWeight.BOLD),
-                ft.Text(t("status"), width=100, weight=ft.FontWeight.BOLD),
-            ]))
-            departement_table.controls.append(ft.Divider())
-            for row in rows:
-                if str(current_user.get("niveau_acces") or "National") != "National" and (row["province"] or "").strip().lower() != str(current_user.get("province") or "").strip().lower():
-                    continue
+            def load_departements():
+                conn = db_connect()
+                rows = conn.execute("SELECT * FROM departements ORDER BY province, nom").fetchall()
+                conn.close()
+                departement_table.controls.clear()
                 departement_table.controls.append(ft.Row([
-                    ft.Text(str(row["id"]), width=50), ft.Text(row["nom"] or "", width=260),
-                    ft.Text(row["province"] or "National", width=200),
-                    ft.Text(t("active") if int(row["actif"] or 0) else t("inactive"), width=100),
+                    ft.Text(t("id"), width=50, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("department"), width=260, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("province"), width=200, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("status"), width=100, weight=ft.FontWeight.BOLD),
                 ]))
+                departement_table.controls.append(ft.Divider())
+                for row in rows:
+                    if str(current_user.get("niveau_acces") or "National") != "National" and (row["province"] or "").strip().lower() != str(current_user.get("province") or "").strip().lower():
+                        continue
+                    departement_table.controls.append(ft.Row([
+                        ft.Text(str(row["id"]), width=50), ft.Text(row["nom"] or "", width=260),
+                        ft.Text(row["province"] or "National", width=200),
+                        ft.Text(t("active") if int(row["actif"] or 0) else t("inactive"), width=100),
+                    ]))
 
-        def save_departement(_=None):
-            if not require_action("territorial_manage"): return
-            dname = departement_nom.value.strip()
-            dprov = departement_province.value.strip()
-            if not dname: snack(t("department"), True); return
-            if str(current_user.get("niveau_acces") or "National") != "National":
-                if not dprov or dprov.lower() != str(current_user.get("province") or "").lower():
-                    snack(t("access_denied"), True); return
-            conn = db_connect()
-            try:
-                conn.execute("INSERT INTO departements(nom, code, province, actif, date_creation) VALUES (?, ?, ?, 1, ?)", (dname, "", dprov or None, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-                conn.commit()
-            except sqlite3.IntegrityError:
-                conn.rollback(); conn.close(); snack(t("error"), True); return
-            except Exception as ex:
-                conn.rollback(); conn.close(); snack(f"{t('error')} : {ex}", True); return
-            conn.close(); journaliser("DEPARTEMENT_CREE", f"{dname} — {dprov or 'National'}"); departement_nom.value = ""; load_departements(); snack(t("add_structure")); page.update()
+            def save_departement(_=None):
+                if not require_action("territorial_manage"): return
+                dname = departement_nom.value.strip()
+                dprov = departement_province.value.strip()
+                if not dname: snack(t("department"), True); return
+                if str(current_user.get("niveau_acces") or "National") != "National":
+                    if not dprov or dprov.lower() != str(current_user.get("province") or "").lower():
+                        snack(t("access_denied"), True); return
+                conn = db_connect()
+                try:
+                    conn.execute("INSERT INTO departements(nom, code, province, actif, date_creation) VALUES (?, ?, ?, 1, ?)", (dname, "", dprov or None, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    conn.commit()
+                except sqlite3.IntegrityError:
+                    conn.rollback(); conn.close(); snack(t("error"), True); return
+                except Exception as ex:
+                    conn.rollback(); conn.close(); snack(f"{t('error')} : {ex}", True); return
+                conn.close(); journaliser("DEPARTEMENT_CREE", f"{dname} — {dprov or 'National'}"); departement_nom.value = ""; load_departements(); snack(t("add_structure")); page.update()
 
-        def load(_=None):
-            q = (recherche.value or "").strip().lower()
-            conn = db_connect()
-            rows = conn.execute("""
-                SELECT s.*, p.nom AS parent_nom
-                FROM structures_territoriales s
-                LEFT JOIN structures_territoriales p ON p.id = s.parent_id
-                ORDER BY CASE s.type WHEN 'Province' THEN 1 WHEN 'Ville' THEN 2 WHEN 'Territoire' THEN 3 WHEN 'Commune' THEN 4 ELSE 5 END, s.nom
-            """).fetchall()
-            conn.close()
-            table.controls.clear()
-            table.controls.append(ft.Row([
-                ft.Text(t("id"), width=50, weight=ft.FontWeight.BOLD),
-                ft.Text(t("structure_type"), width=130, weight=ft.FontWeight.BOLD),
-                ft.Text(t("structure_name"), width=220, weight=ft.FontWeight.BOLD),
-                ft.Text(t("structure_code"), width=120, weight=ft.FontWeight.BOLD),
-                ft.Text(t("parent_structure"), width=220, weight=ft.FontWeight.BOLD),
-                ft.Text(t("status"), width=100, weight=ft.FontWeight.BOLD),
-            ]))
-            table.controls.append(ft.Divider())
-            for row in rows:
-                hay = " ".join(str(row[k] or "") for k in ("type", "nom", "code", "parent_nom")).lower()
-                if q and q not in hay:
-                    continue
+            def load(_=None):
+                q = (recherche.value or "").strip().lower()
+                conn = db_connect()
+                rows = conn.execute("""
+                    SELECT s.*, p.nom AS parent_nom
+                    FROM structures_territoriales s
+                    LEFT JOIN structures_territoriales p ON p.id = s.parent_id
+                    ORDER BY CASE s.type WHEN 'Province' THEN 1 WHEN 'Ville' THEN 2 WHEN 'Territoire' THEN 3 WHEN 'Commune' THEN 4 ELSE 5 END, s.nom
+                """).fetchall()
+                conn.close()
+                table.controls.clear()
                 table.controls.append(ft.Row([
-                    ft.Text(str(row["id"]), width=50),
-                    ft.Text(row["type"] or "", width=130),
-                    ft.Text(row["nom"] or "", width=220),
-                    ft.Text(row["code"] or "", width=120),
-                    ft.Text(row["parent_nom"] or "—", width=220),
-                    ft.Text(t("active") if int(row["actif"] or 0) else t("inactive"), width=100),
+                    ft.Text(t("id"), width=50, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("structure_type"), width=130, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("structure_name"), width=220, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("structure_code"), width=120, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("parent_structure"), width=220, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("status"), width=100, weight=ft.FontWeight.BOLD),
                 ]))
-            page.update()
+                table.controls.append(ft.Divider())
+                for row in rows:
+                    hay = " ".join(str(row[k] or "") for k in ("type", "nom", "code", "parent_nom")).lower()
+                    if q and q not in hay:
+                        continue
+                    table.controls.append(ft.Row([
+                        ft.Text(str(row["id"]), width=50),
+                        ft.Text(row["type"] or "", width=130),
+                        ft.Text(row["nom"] or "", width=220),
+                        ft.Text(row["code"] or "", width=120),
+                        ft.Text(row["parent_nom"] or "—", width=220),
+                        ft.Text(t("active") if int(row["actif"] or 0) else t("inactive"), width=100),
+                    ]))
+                page.update()
 
-        def save(_=None):
-            if not require_action("territorial_manage"):
-                return
-            name = (nom.value or "").strip()
-            if not name:
-                snack(t("structure_name"), True)
-                return
-            if str(current_user.get("niveau_acces") or "National") != "National":
-                if type_structure.value == "Province":
-                    journaliser("OPERATION_REFUSEE", f"Création province hors niveau national: {name}")
-                    snack(t("access_denied"), True)
+            def save(_=None):
+                if not require_action("territorial_manage"):
                     return
-                if not (parent.value or "").strip():
-                    snack(t("parent_structure"), True)
+                name = (nom.value or "").strip()
+                if not name:
+                    snack(t("structure_name"), True)
                     return
-            conn = db_connect()
-            try:
-                parent_id = None
-                parent_name = (parent.value or "").strip()
-                if parent_name:
-                    prow = conn.execute("SELECT id FROM structures_territoriales WHERE LOWER(nom)=LOWER(?) ORDER BY id LIMIT 1", (parent_name,)).fetchone()
-                    if prow:
-                        parent_id = prow["id"]
-                    else:
-                        snack(t("parent_structure"), True); conn.close(); return
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                conn.execute("INSERT INTO structures_territoriales(type, code, nom, parent_id, actif, date_creation) VALUES (?, ?, ?, ?, 1, ?)", (type_structure.value, code.value.strip(), name, parent_id, now))
-                conn.commit()
-            except sqlite3.IntegrityError:
-                conn.rollback(); conn.close(); snack(t("error"), True); return
-            except Exception as ex:
-                conn.rollback(); conn.close(); snack(f"{t('error')} : {ex}", True); return
-            conn.close()
-            journaliser("STRUCTURE_TERRITORIALE_CREEE", f"{type_structure.value}: {name}")
-            nom.value = ""; code.value = ""; parent.value = ""
-            snack(t("add_structure")); load()
+                if str(current_user.get("niveau_acces") or "National") != "National":
+                    if type_structure.value == "Province":
+                        journaliser("OPERATION_REFUSEE", f"Création province hors niveau national: {name}")
+                        snack(t("access_denied"), True)
+                        return
+                    if not (parent.value or "").strip():
+                        snack(t("parent_structure"), True)
+                        return
+                conn = db_connect()
+                try:
+                    parent_id = None
+                    parent_name = (parent.value or "").strip()
+                    if parent_name:
+                        prow = conn.execute("SELECT id FROM structures_territoriales WHERE LOWER(nom)=LOWER(?) ORDER BY id LIMIT 1", (parent_name,)).fetchone()
+                        if prow:
+                            parent_id = prow["id"]
+                        else:
+                            snack(t("parent_structure"), True); conn.close(); return
+                    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    conn.execute("INSERT INTO structures_territoriales(type, code, nom, parent_id, actif, date_creation) VALUES (?, ?, ?, ?, 1, ?)", (type_structure.value, code.value.strip(), name, parent_id, now))
+                    conn.commit()
+                except sqlite3.IntegrityError:
+                    conn.rollback(); conn.close(); snack(t("error"), True); return
+                except Exception as ex:
+                    conn.rollback(); conn.close(); snack(f"{t('error')} : {ex}", True); return
+                conn.close()
+                journaliser("STRUCTURE_TERRITORIALE_CREEE", f"{type_structure.value}: {name}")
+                nom.value = ""; code.value = ""; parent.value = ""
+                snack(t("add_structure")); load()
 
-        recherche.on_change = load
+            recherche.on_change = load
 
-        content.content = ft.Column([
-            title(t("territorial_title"), t("territorial_subtitle")),
-            ft.Divider(),
-            panel(ft.Column([
-                ft.Text(t("national_control"), size=17, weight=ft.FontWeight.BOLD),
-                ft.Text(t("scope_restricted"), size=12, color=COLOR_TEXT_MUTED),
-                ft.Row([type_structure, code]),
-                ft.Row([nom, parent]),
-                ft.ElevatedButton(
-                    t("add_structure"), 
-                    icon=ft.Icons.ADD_LOCATION_ALT, 
-                    on_click=save,
-                    style=ft.ButtonStyle(
-                        bgcolor=COLOR_PRIMARY,
-                        color=ft.Colors.WHITE,
-                        padding=ft.Padding(left=20, top=15, right=20, bottom=15),
-                        shape=ft.RoundedRectangleBorder(radius=8),
+            content.content = ft.Column([
+                title(t("territorial_title"), t("territorial_subtitle")),
+                ft.Divider(),
+                panel(ft.Column([
+                    ft.Text(t("national_control"), size=17, weight=ft.FontWeight.BOLD),
+                    ft.Text(t("scope_restricted"), size=12, color=COLOR_TEXT_MUTED),
+                    ft.Row([type_structure, code]),
+                    ft.Row([nom, parent]),
+                    ft.ElevatedButton(
+                        t("add_structure"), 
+                        icon=ft.Icons.ADD_LOCATION_ALT, 
+                        on_click=save,
+                        style=ft.ButtonStyle(
+                            bgcolor=COLOR_PRIMARY,
+                            color=ft.Colors.WHITE,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
                     ),
-                ),
-            ], spacing=10)),
-            panel(ft.Column([
-                ft.Text(t("department_control"), size=17, weight=ft.FontWeight.BOLD),
-                ft.Row([departement_nom, departement_province]),
-                ft.ElevatedButton(
-                    t("add_structure"), 
-                    icon=ft.Icons.BUSINESS, 
-                    on_click=save_departement,
-                    style=ft.ButtonStyle(
-                        bgcolor=COLOR_PRIMARY,
-                        color=ft.Colors.WHITE,
-                        padding=ft.Padding(left=20, top=15, right=20, bottom=15),
-                        shape=ft.RoundedRectangleBorder(radius=8),
+                ], spacing=10)),
+                panel(ft.Column([
+                    ft.Text(t("department_control"), size=17, weight=ft.FontWeight.BOLD),
+                    ft.Row([departement_nom, departement_province]),
+                    ft.ElevatedButton(
+                        t("add_structure"), 
+                        icon=ft.Icons.BUSINESS, 
+                        on_click=save_departement,
+                        style=ft.ButtonStyle(
+                            bgcolor=COLOR_PRIMARY,
+                            color=ft.Colors.WHITE,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
                     ),
-                ),
-                departement_table,
-            ], spacing=10)),
-            recherche,
-            panel(table),
-        ], spacing=12, scroll=ft.ScrollMode.AUTO)
-        
-        load()
-        load_departements()
-
+                    departement_table,
+                ], spacing=10)),
+                recherche,
+                panel(table),
+            ], spacing=12, scroll=ft.ScrollMode.AUTO)
+            
+            load()
+            load_departements()
 # --------------------------------------------------------
-    # Utilisateurs
-    # --------------------------------------------------------
+        # Utilisateurs
+        # --------------------------------------------------------
 
-    def utilisateurs_view():
-        nonlocal current_route
-        current_route = "utilisateurs"
+        def utilisateurs_view():
+            nonlocal current_route
+            current_route = "utilisateurs"
 
-        selected_id = {"value": None}
-        nom = text_field(t("full_name") + " *")
-        role = ft.Dropdown(
-            label=t("role"), value="Agent",
-            options=[
-                ft.dropdown.Option("Administrateur", t("administrator")),
-                ft.dropdown.Option("Superviseur", t("supervisor")),
-                ft.dropdown.Option("Technicien", t("technician")),
-                ft.dropdown.Option("Agent", t("agent_role")),
-                ft.dropdown.Option("Consultation", t("consultation")),
-            ], border_radius=14, border_color=COLOR_BORDER, expand=True,
-        )
-        tel = text_field(t("phone"))
-        niveau = ft.Dropdown(
-            label=t("access_level"), value="National",
-            options=[
-                ft.dropdown.Option("National", t("national_level")),
-                ft.dropdown.Option("Provincial", t("provincial_level")),
-                ft.dropdown.Option("Ville", t("city_level")),
-                ft.dropdown.Option("Territoire", t("territory_level")),
-                ft.dropdown.Option("Commune", t("commune_level")),
-                ft.dropdown.Option("Secteur", t("sector_chiefdom")),
-                ft.dropdown.Option("Chefferie", t("sector_chiefdom")),
-                ft.dropdown.Option("Groupement", t("grouping")),
-                ft.dropdown.Option("Village", t("village")),
-            ], border_radius=14, border_color=COLOR_BORDER, expand=True,
-        )
-        province_u = text_field(t("province"))
-        ville_u = text_field(t("city"))
-        territoire_u = text_field(t("territory"))
-        commune_u = text_field(t("commune"))
-        secteur_u = text_field(t("sector_chiefdom"))
-        groupement_u = text_field(t("grouping"))
-        village_u = text_field(t("village"))
-        departement_u = text_field(t("department_scope"))
-        password = ft.TextField(label=t("new_password_optional"), password=True, can_reveal_password=True, border_radius=14, border_color=COLOR_BORDER, expand=True)
-        password_confirm = ft.TextField(label=t("confirm_password"), password=True, can_reveal_password=True, border_radius=14, border_color=COLOR_BORDER, expand=True)
-        status = ft.Text("", size=12, color=COLOR_TEXT_MUTED)
-        table = ft.Column()
+            selected_id = {"value": None}
+            nom = text_field(t("full_name") + " *")
+            role = ft.Dropdown(
+                label=t("role"), value="Agent",
+                options=[
+                    ft.dropdown.Option("Administrateur", t("administrator")),
+                    ft.dropdown.Option("Superviseur", t("supervisor")),
+                    ft.dropdown.Option("Technicien", t("technician")),
+                    ft.dropdown.Option("Agent", t("agent_role")),
+                    ft.dropdown.Option("Consultation", t("consultation")),
+                ], border_radius=14, border_color=COLOR_BORDER, expand=True,
+            )
+            tel = text_field(t("phone"))
+            niveau = ft.Dropdown(
+                label=t("access_level"), value="National",
+                options=[
+                    ft.dropdown.Option("National", t("national_level")),
+                    ft.dropdown.Option("Provincial", t("provincial_level")),
+                    ft.dropdown.Option("Ville", t("city_level")),
+                    ft.dropdown.Option("Territoire", t("territory_level")),
+                    ft.dropdown.Option("Commune", t("commune_level")),
+                    ft.dropdown.Option("Secteur", t("sector_chiefdom")),
+                    ft.dropdown.Option("Chefferie", t("sector_chiefdom")),
+                    ft.dropdown.Option("Groupement", t("grouping")),
+                    ft.dropdown.Option("Village", t("village")),
+                ], border_radius=14, border_color=COLOR_BORDER, expand=True,
+            )
+            province_u = text_field(t("province"))
+            ville_u = text_field(t("city"))
+            territoire_u = text_field(t("territory"))
+            commune_u = text_field(t("commune"))
+            secteur_u = text_field(t("sector_chiefdom"))
+            groupement_u = text_field(t("grouping"))
+            village_u = text_field(t("village"))
+            departement_u = text_field(t("department_scope"))
+            password = ft.TextField(label=t("new_password_optional"), password=True, can_reveal_password=True, border_radius=14, border_color=COLOR_BORDER, expand=True)
+            password_confirm = ft.TextField(label=t("confirm_password"), password=True, can_reveal_password=True, border_radius=14, border_color=COLOR_BORDER, expand=True)
+            status = ft.Text("", size=12, color=COLOR_TEXT_MUTED)
+            table = ft.Column()
 
-        def clear_form():
-            selected_id["value"] = None
-            for f in (nom, tel, province_u, ville_u, territoire_u, commune_u, secteur_u, groupement_u, village_u, departement_u, password, password_confirm): f.value = ""
-            role.value = "Agent"; niveau.value = "National"; status.value = ""
+            def clear_form():
+                selected_id["value"] = None
+                for f in (nom, tel, province_u, ville_u, territoire_u, commune_u, secteur_u, groupement_u, village_u, departement_u, password, password_confirm): f.value = ""
+                role.value = "Agent"; niveau.value = "National"; status.value = ""
 
-        def load_user(user_id):
-            conn = db_connect(); row = conn.execute("SELECT * FROM utilisateurs WHERE id = ?", (user_id,)).fetchone(); conn.close()
-            if not row: return
-            selected_id["value"] = row["id"]; nom.value = row["nom"] or ""; tel.value = row["telephone"] or ""; role.value = row["role"]; niveau.value = row["niveau_acces"] or "National"
-            province_u.value = row["province"] or ""; ville_u.value = row["ville"] or ""; territoire_u.value = row["territoire"] or ""; commune_u.value = row["commune"] or ""; secteur_u.value = row["secteur_chefferie"] or ""; groupement_u.value = row["groupement"] or ""; village_u.value = row["village"] or ""; departement_u.value = row["departement"] or ""
-            password.value = ""; password_confirm.value = ""; status.value = f"{t('select_user')}: {row['nom']}"; page.update()
+            def load_user(user_id):
+                conn = db_connect(); row = conn.execute("SELECT * FROM utilisateurs WHERE id = ?", (user_id,)).fetchone(); conn.close()
+                if not row: return
+                selected_id["value"] = row["id"]; nom.value = row["nom"] or ""; tel.value = row["telephone"] or ""; role.value = row["role"]; niveau.value = row["niveau_acces"] or "National"
+                province_u.value = row["province"] or ""; ville_u.value = row["ville"] or ""; territoire_u.value = row["territoire"] or ""; commune_u.value = row["commune"] or ""; secteur_u.value = row["secteur_chefferie"] or ""; groupement_u.value = row["groupement"] or ""; village_u.value = row["village"] or ""; departement_u.value = row["departement"] or ""
+                password.value = ""; password_confirm.value = ""; status.value = f"{t('select_user')}: {row['nom']}"; page.update()
 
-        def save_user(_=None):
-            if not require_action("user_manage"): return
-            username = nom.value.strip(); pwd = password.value or ""; uid = selected_id["value"]
-            if not username: snack(t("owner_required"), True); return
-            if pwd and len(pwd) < 8: snack(t("password_short"), True); return
-            if pwd and pwd != (password_confirm.value or ""): snack(t("password_mismatch"), True); return
-            if niveau.value != "National" and not province_u.value.strip(): snack(t("province"), True); return
-            if not target_scope_allowed(niveau.value, province_u.value.strip(), ville_u.value.strip(), territoire_u.value.strip(), commune_u.value.strip(), secteur_u.value.strip(), groupement_u.value.strip(), village_u.value.strip()):
-                journaliser("OPERATION_REFUSEE", f"Affectation territoriale hors périmètre: {username}")
-                snack(t("access_denied"), True); return
-            conn = db_connect()
-            try:
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                scope_values = (niveau.value, province_u.value.strip(), ville_u.value.strip(), territoire_u.value.strip(), commune_u.value.strip(), secteur_u.value.strip(), groupement_u.value.strip(), village_u.value.strip(), departement_u.value.strip())
-                if uid is None:
-                    if not pwd: snack(t("password_short"), True); conn.close(); return
-                    salt, pwd_hash = hash_password(pwd)
-                    conn.execute("""INSERT INTO utilisateurs(nom, role, telephone, date_creation, password_hash, password_salt, failed_attempts, locked_until, last_login, active, niveau_acces, province, ville, territoire, commune, secteur_chefferie, groupement, village, departement) VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (username, role.value, tel.value.strip(), now, pwd_hash, salt, *scope_values))
-                    action = "CREATION_UTILISATEUR"
-                else:
-                    old = conn.execute("SELECT * FROM utilisateurs WHERE id = ?", (uid,)).fetchone()
-                    if not old: conn.close(); snack(t("error"), True); return
-                    if int(uid) == int(current_user["id"]) and role.value != old["role"]: conn.close(); snack(t("cannot_change_self_role"), True); return
-                    if old["role"] == "Administrateur" and role.value != "Administrateur":
-                        admins = conn.execute("SELECT COUNT(*) FROM utilisateurs WHERE role='Administrateur' AND active=1").fetchone()[0]
-                        if admins <= 1: conn.close(); snack(t("cannot_delete_last_admin"), True); return
-                    conn.execute("""UPDATE utilisateurs SET nom=?, role=?, telephone=?, niveau_acces=?, province=?, ville=?, territoire=?, commune=?, secteur_chefferie=?, groupement=?, village=?, departement=? WHERE id=?""", (username, role.value, tel.value.strip(), *scope_values, uid))
-                    if pwd:
-                        salt, pwd_hash = hash_password(pwd); conn.execute("UPDATE utilisateurs SET password_hash=?, password_salt=?, failed_attempts=0, locked_until=0 WHERE id=?", (pwd_hash, salt, uid))
-                    action = "MODIFICATION_UTILISATEUR"
-                conn.commit()
-            except Exception as ex:
-                conn.rollback(); conn.close(); snack(f"{t('error')} : {ex}", True); return
-            conn.close(); make_backup("pre_user_change"); journaliser(action, f"{username} — {niveau.value} — {province_u.value.strip()}"); clear_form(); snack(t("user_saved")); load()
+            def save_user(_=None):
+                if not require_action("user_manage"): return
+                username = nom.value.strip(); pwd = password.value or ""; uid = selected_id["value"]
+                if not username: snack(t("owner_required"), True); return
+                if pwd and len(pwd) < 8: snack(t("password_short"), True); return
+                if pwd and pwd != (password_confirm.value or ""): snack(t("password_mismatch"), True); return
+                if niveau.value != "National" and not province_u.value.strip(): snack(t("province"), True); return
+                if not target_scope_allowed(niveau.value, province_u.value.strip(), ville_u.value.strip(), territoire_u.value.strip(), commune_u.value.strip(), secteur_u.value.strip(), groupement_u.value.strip(), village_u.value.strip()):
+                    journaliser("OPERATION_REFUSEE", f"Affectation territoriale hors périmètre: {username}")
+                    snack(t("access_denied"), True); return
+                conn = db_connect()
+                try:
+                    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    scope_values = (niveau.value, province_u.value.strip(), ville_u.value.strip(), territoire_u.value.strip(), commune_u.value.strip(), secteur_u.value.strip(), groupement_u.value.strip(), village_u.value.strip(), departement_u.value.strip())
+                    if uid is None:
+                        if not pwd: snack(t("password_short"), True); conn.close(); return
+                        salt, pwd_hash = hash_password(pwd)
+                        conn.execute("""INSERT INTO utilisateurs(nom, role, telephone, date_creation, password_hash, password_salt, failed_attempts, locked_until, last_login, active, niveau_acces, province, ville, territoire, commune, secteur_chefferie, groupement, village, departement) VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (username, role.value, tel.value.strip(), now, pwd_hash, salt, *scope_values))
+                        action = "CREATION_UTILISATEUR"
+                    else:
+                        old = conn.execute("SELECT * FROM utilisateurs WHERE id = ?", (uid,)).fetchone()
+                        if not old: conn.close(); snack(t("error"), True); return
+                        if int(uid) == int(current_user["id"]) and role.value != old["role"]: conn.close(); snack(t("cannot_change_self_role"), True); return
+                        if old["role"] == "Administrateur" and role.value != "Administrateur":
+                            admins = conn.execute("SELECT COUNT(*) FROM utilisateurs WHERE role='Administrateur' AND active=1").fetchone()[0]
+                            if admins <= 1: conn.close(); snack(t("cannot_delete_last_admin"), True); return
+                        conn.execute("""UPDATE utilisateurs SET nom=?, role=?, telephone=?, niveau_acces=?, province=?, ville=?, territoire=?, commune=?, secteur_chefferie=?, groupement=?, village=?, departement=? WHERE id=?""", (username, role.value, tel.value.strip(), *scope_values, uid))
+                        if pwd:
+                            salt, pwd_hash = hash_password(pwd); conn.execute("UPDATE utilisateurs SET password_hash=?, password_salt=?, failed_attempts=0, locked_until=0 WHERE id=?", (pwd_hash, salt, uid))
+                        action = "MODIFICATION_UTILISATEUR"
+                    conn.commit()
+                except Exception as ex:
+                    conn.rollback(); conn.close(); snack(f"{t('error')} : {ex}", True); return
+                conn.close(); make_backup("pre_user_change"); journaliser(action, f"{username} — {niveau.value} — {province_u.value.strip()}"); clear_form(); snack(t("user_saved")); load()
 
-        def toggle_active(user_id):
-            if not require_action("user_manage"): return
-            conn = db_connect(); row = conn.execute("SELECT * FROM utilisateurs WHERE id=?", (user_id,)).fetchone()
-            if not row: conn.close(); return
-            new_active = 0 if int(row["active"] or 0) else 1
-            if new_active == 0 and row["role"] == "Administrateur":
-                admins = conn.execute("SELECT COUNT(*) FROM utilisateurs WHERE role='Administrateur' AND active=1").fetchone()[0]
-                if admins <= 1: conn.close(); snack(t("cannot_disable_last_admin"), True); return
-            conn.execute("UPDATE utilisateurs SET active=?, failed_attempts=0, locked_until=0 WHERE id=?", (new_active, user_id)); conn.commit(); conn.close(); make_backup("pre_user_status"); journaliser("ACTIVATION_UTILISATEUR" if new_active else "DESACTIVATION_UTILISATEUR", str(row["nom"])); load()
+            def toggle_active(user_id):
+                if not require_action("user_manage"): return
+                conn = db_connect(); row = conn.execute("SELECT * FROM utilisateurs WHERE id=?", (user_id,)).fetchone()
+                if not row: conn.close(); return
+                new_active = 0 if int(row["active"] or 0) else 1
+                if new_active == 0 and row["role"] == "Administrateur":
+                    admins = conn.execute("SELECT COUNT(*) FROM utilisateurs WHERE role='Administrateur' AND active=1").fetchone()[0]
+                    if admins <= 1: conn.close(); snack(t("cannot_disable_last_admin"), True); return
+                conn.execute("UPDATE utilisateurs SET active=?, failed_attempts=0, locked_until=0 WHERE id=?", (new_active, user_id)); conn.commit(); conn.close(); make_backup("pre_user_status"); journaliser("ACTIVATION_UTILISATEUR" if new_active else "DESACTIVATION_UTILISATEUR", str(row["nom"])); load()
 
-        def load():
-            conn = db_connect(); rows = conn.execute("SELECT * FROM utilisateurs ORDER BY id DESC").fetchall(); conn.close(); table.controls.clear()
-            table.controls.append(ft.Row([ft.Text(t("id"), width=45, weight=ft.FontWeight.BOLD), ft.Text(t("name"), width=180, weight=ft.FontWeight.BOLD), ft.Text(t("role"), width=140, weight=ft.FontWeight.BOLD), ft.Text(t("access_level"), width=110, weight=ft.FontWeight.BOLD), ft.Text(t("province"), width=150, weight=ft.FontWeight.BOLD), ft.Text(t("status"), width=100, weight=ft.FontWeight.BOLD), ft.Text(t("actions"), width=260, weight=ft.FontWeight.BOLD)]))
-            table.controls.append(ft.Divider()); now = time.time()
-            for row in rows:
-                if not target_scope_allowed(row["niveau_acces"] or "National", row["province"], row["ville"], row["territoire"], row["commune"], row["secteur_chefferie"], row["groupement"], row["village"]):
-                    continue
-                locked = float(row["locked_until"] or 0) > now; st = t("locked") if locked else (t("active") if int(row["active"] or 0) else t("inactive"))
-                buttons = [
-                    ft.ElevatedButton(
-                        t("edit_user"), 
-                        icon=ft.Icons.EDIT, 
-                        on_click=lambda e, i=row["id"]: load_user(i),
-                        style=ft.ButtonStyle(
-                            bgcolor=COLOR_PRIMARY,
-                            color=ft.Colors.WHITE,
-                            padding=ft.Padding(left=12, top=8, right=12, bottom=8),
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                    ), 
-                    ft.ElevatedButton(
-                        t("unblock_user") if locked or not int(row["active"] or 0) else t("block_user"), 
-                        icon=ft.Icons.LOCK_OPEN if locked or not int(row["active"] or 0) else ft.Icons.LOCK, 
-                        on_click=lambda e, i=row["id"]: toggle_active(i),
-                        style=ft.ButtonStyle(
-                            bgcolor=COLOR_PRIMARY,
-                            color=ft.Colors.WHITE,
-                            padding=ft.Padding(left=12, top=8, right=12, bottom=8),
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                    )
-                ]
-                table.controls.append(ft.Row([ft.Text(str(row["id"]), width=45), ft.Text(row["nom"] or "", width=180), ft.Text(enum_text(row["role"], ROLE_KEYS), width=140), ft.Text(row["niveau_acces"] or "National", width=110), ft.Text(row["province"] or "Toutes", width=150), ft.Text(st, width=100), ft.Row(buttons, spacing=5, width=260)]))
-            page.update()
+            def load():
+                conn = db_connect(); rows = conn.execute("SELECT * FROM utilisateurs ORDER BY id DESC").fetchall(); conn.close(); table.controls.clear()
+                table.controls.append(ft.Row([ft.Text(t("id"), width=45, weight=ft.FontWeight.BOLD), ft.Text(t("name"), width=180, weight=ft.FontWeight.BOLD), ft.Text(t("role"), width=140, weight=ft.FontWeight.BOLD), ft.Text(t("access_level"), width=110, weight=ft.FontWeight.BOLD), ft.Text(t("province"), width=150, weight=ft.FontWeight.BOLD), ft.Text(t("status"), width=100, weight=ft.FontWeight.BOLD), ft.Text(t("actions"), width=260, weight=ft.FontWeight.BOLD)]))
+                table.controls.append(ft.Divider()); now = time.time()
+                for row in rows:
+                    if not target_scope_allowed(row["niveau_acces"] or "National", row["province"], row["ville"], row["territoire"], row["commune"], row["secteur_chefferie"], row["groupement"], row["village"]):
+                        continue
+                    locked = float(row["locked_until"] or 0) > now; st = t("locked") if locked else (t("active") if int(row["active"] or 0) else t("inactive"))
+                    buttons = [
+                        ft.ElevatedButton(
+                            t("edit_user"), 
+                            icon=ft.Icons.EDIT, 
+                            on_click=lambda e, i=row["id"]: load_user(i),
+                            style=ft.ButtonStyle(
+                                bgcolor=COLOR_PRIMARY,
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                shape=ft.RoundedRectangleBorder(radius=8),
+                            ),
+                        ), 
+                        ft.ElevatedButton(
+                            t("unblock_user") if locked or not int(row["active"] or 0) else t("block_user"), 
+                            icon=ft.Icons.LOCK_OPEN if locked or not int(row["active"] or 0) else ft.Icons.LOCK, 
+                            on_click=lambda e, i=row["id"]: toggle_active(i),
+                            style=ft.ButtonStyle(
+                                bgcolor=COLOR_PRIMARY,
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                shape=ft.RoundedRectangleBorder(radius=8),
+                            ),
+                        )
+                    ]
+                    table.controls.append(ft.Row([ft.Text(str(row["id"]), width=45), ft.Text(row["nom"] or "", width=180), ft.Text(enum_text(row["role"], ROLE_KEYS), width=140), ft.Text(row["niveau_acces"] or "National", width=110), ft.Text(row["province"] or "Toutes", width=150), ft.Text(st, width=100), ft.Row(buttons, spacing=5, width=260)]))
+                page.update()
 
-        content.content = ft.Column([
-            title(t("users_title"), t("users_subtitle")), 
-            ft.Divider(), 
-            panel(ft.Column([
-                ft.Text(t("user_management"), size=17, weight=ft.FontWeight.BOLD), 
-                ft.Row([nom, role, niveau]), 
-                tel, 
-                ft.Row([province_u, ville_u, territoire_u]), 
-                ft.Row([commune_u, secteur_u, groupement_u]), 
-                ft.Row([village_u, departement_u]), 
-                ft.Row([password, password_confirm]), 
-                status, 
-                ft.Row([
-                    ft.ElevatedButton(
-                        t("add_user"), 
-                        icon=ft.Icons.PERSON_ADD, 
-                        on_click=lambda e: (clear_form(), page.update()),
-                        style=ft.ButtonStyle(
-                            bgcolor=COLOR_PRIMARY,
-                            color=ft.Colors.WHITE,
-                            padding=ft.Padding(left=20, top=15, right=20, bottom=15),
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                    ), 
-                    ft.ElevatedButton(
-                        t("update_user"), 
-                        icon=ft.Icons.SAVE, 
-                        on_click=save_user,
-                        style=ft.ButtonStyle(
-                            bgcolor=COLOR_PRIMARY,
-                            color=ft.Colors.WHITE,
-                            padding=ft.Padding(left=20, top=15, right=20, bottom=15),
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                    )
-                ]), 
-                ft.Text(t("scope_restricted"), size=11, color=COLOR_TEXT_MUTED)
-            ], spacing=10)), 
-            panel(table)
-        ], spacing=12, scroll=ft.ScrollMode.AUTO)
-        
-        load()
+            content.content = ft.Column([
+                title(t("users_title"), t("users_subtitle")), 
+                ft.Divider(), 
+                panel(ft.Column([
+                    ft.Text(t("user_management"), size=17, weight=ft.FontWeight.BOLD), 
+                    ft.Row([nom, role, niveau]), 
+                    tel, 
+                    ft.Row([province_u, ville_u, territoire_u]), 
+                    ft.Row([commune_u, secteur_u, groupement_u]), 
+                    ft.Row([village_u, departement_u]), 
+                    ft.Row([password, password_confirm]), 
+                    status, 
+                    ft.Row([
+                        ft.ElevatedButton(
+                            t("add_user"), 
+                            icon=ft.Icons.PERSON_ADD, 
+                            on_click=lambda e: (clear_form(), page.update()),
+                            style=ft.ButtonStyle(
+                                bgcolor=COLOR_PRIMARY,
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                                shape=ft.RoundedRectangleBorder(radius=8),
+                            ),
+                        ), 
+                        ft.ElevatedButton(
+                            t("update_user"), 
+                            icon=ft.Icons.SAVE, 
+                            on_click=save_user,
+                            style=ft.ButtonStyle(
+                                bgcolor=COLOR_PRIMARY,
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                                shape=ft.RoundedRectangleBorder(radius=8),
+                            ),
+                        )
+                    ]), 
+                    ft.Text(t("scope_restricted"), size=11, color=COLOR_TEXT_MUTED)
+                ], spacing=10)), 
+                panel(table)
+            ], spacing=12, scroll=ft.ScrollMode.AUTO)
+            
+            load()
 
-    # --------------------------------------------------------
-    # Journal
-    # --------------------------------------------------------
+        # --------------------------------------------------------
+        # Journal
+        # --------------------------------------------------------
 
-    def journal_view():
-        nonlocal current_route
-        current_route = "journal"
+        def journal_view():
+            nonlocal current_route
+            current_route = "journal"
 
-        # ----------------------------------------------------
-        # Champs de recherche et filtres
-        # ----------------------------------------------------
+            # ----------------------------------------------------
+            # Champs de recherche et filtres
+            # ----------------------------------------------------
 
-        recherche = text_field(
-            t("search")
-        )
+            recherche = text_field(
+                t("search")
+            )
 
-        recherche.hint_text = (
-            "Nom, action, détails, date..."
-        )
+            recherche.hint_text = (
+                "Nom, action, détails, date..."
+            )
 
-        filtre_nom = text_field(
-            t("name")
-        )
+            filtre_nom = text_field(
+                t("name")
+            )
 
-        filtre_role = ft.Dropdown(
-            label=t("role"),
-            options=[
-                ft.dropdown.Option(
-                    "",
-                    t("all")
-                ),
-                ft.dropdown.Option(
-                    "Administrateur",
-                    "Administrateur"
-                ),
-                ft.dropdown.Option(
-                    "Superviseur",
-                    "Superviseur"
-                ),
-                ft.dropdown.Option(
-                    "Technicien",
-                    "Technicien"
-                ),
-                ft.dropdown.Option(
-                    "Agent",
-                    "Agent"
-                ),
-                ft.dropdown.Option(
-                    "Consultation",
-                    "Consultation"
-                ),
-            ],
-            value="",
-            expand=True,
-            border_radius=14,
-            border_color=COLOR_BORDER,
-        )
+            filtre_role = ft.Dropdown(
+                label=t("role"),
+                options=[
+                    ft.dropdown.Option(
+                        "",
+                        t("all")
+                    ),
+                    ft.dropdown.Option(
+                        "Administrateur",
+                        "Administrateur"
+                    ),
+                    ft.dropdown.Option(
+                        "Superviseur",
+                        "Superviseur"
+                    ),
+                    ft.dropdown.Option(
+                        "Technicien",
+                        "Technicien"
+                    ),
+                    ft.dropdown.Option(
+                        "Agent",
+                        "Agent"
+                    ),
+                    ft.dropdown.Option(
+                        "Consultation",
+                        "Consultation"
+                    ),
+                ],
+                value="",
+                expand=True,
+                border_radius=14,
+                border_color=COLOR_BORDER,
+            )
 
-        filtre_action = ft.Dropdown(
-            label=t("action"),
-            options=[
-                ft.dropdown.Option(
-                    "",
-                    t("all")
-                ),
-                ft.dropdown.Option(
-                    "LOGIN",
-                    "LOGIN"
-                ),
-                ft.dropdown.Option(
-                    "LOGOUT",
-                    "LOGOUT"
-                ),
-                ft.dropdown.Option(
-                    "MUTATION_CREEE_EN_ATTENTE",
-                    "Mutation créée"
-                ),
-                ft.dropdown.Option(
-                    "MUTATION_VALIDEE",
-                    "Mutation validée"
-                ),
-                ft.dropdown.Option(
-                    "MUTATION_REFUSEE",
-                    "Mutation refusée"
-                ),
-                ft.dropdown.Option(
-                    "VALIDATION_REFUSEE",
-                    "Validation refusée"
-                ),
-                ft.dropdown.Option(
-                    "VALIDATION_ERREUR",
-                    "Erreur validation"
-                ),
-            ],
-            value="",
-            expand=True,
-            border_radius=14,
-            border_color=COLOR_BORDER,
-        )
+            filtre_action = ft.Dropdown(
+                label=t("action"),
+                options=[
+                    ft.dropdown.Option(
+                        "",
+                        t("all")
+                    ),
+                    ft.dropdown.Option(
+                        "LOGIN",
+                        "LOGIN"
+                    ),
+                    ft.dropdown.Option(
+                        "LOGOUT",
+                        "LOGOUT"
+                    ),
+                    ft.dropdown.Option(
+                        "MUTATION_CREEE_EN_ATTENTE",
+                        "Mutation créée"
+                    ),
+                    ft.dropdown.Option(
+                        "MUTATION_VALIDEE",
+                        "Mutation validée"
+                    ),
+                    ft.dropdown.Option(
+                        "MUTATION_REFUSEE",
+                        "Mutation refusée"
+                    ),
+                    ft.dropdown.Option(
+                        "VALIDATION_REFUSEE",
+                        "Validation refusée"
+                    ),
+                    ft.dropdown.Option(
+                        "VALIDATION_ERREUR",
+                        "Erreur validation"
+                    ),
+                ],
+                value="",
+                expand=True,
+                border_radius=14,
+                border_color=COLOR_BORDER,
+            )
 
-        filtre_date = text_field(
-            t("date")
-        )
+            filtre_date = text_field(
+                t("date")
+            )
 
-        filtre_date.hint_text = (
-            "AAAA-MM-JJ"
-        )
+            filtre_date.hint_text = (
+                "AAAA-MM-JJ"
+            )
 
-        table = ft.Column(
-            spacing=4
-        )
+            table = ft.Column(
+                spacing=4
+            )
 
-        compteur = ft.Text(
-            "",
-            size=12,
-            color=COLOR_TEXT_MUTED,
-        )
-
+            compteur = ft.Text(
+                "",
+                size=12,
+                color=COLOR_TEXT_MUTED,
+            )
         # ----------------------------------------------------
         # Chargement du journal
         # ----------------------------------------------------
@@ -6884,10 +6329,10 @@ def main(page: ft.Page):
 
         journal_table_scroll = ft.Container(
             expand=True,
-            padding=ft.Padding(left=4, top=4, right=4, bottom=4),
+            padding=ft.padding.symmetric(horizontal=4, vertical=4),
             border_radius=14,
             bgcolor=COLOR_CARD if page.theme_mode != ft.ThemeMode.DARK else "#111827",
-            border=ft.Border.all(1, COLOR_BORDER),
+            border=ft.border.all(1, COLOR_BORDER),
             content=ft.ListView(
                 expand=True,
                 spacing=0,
