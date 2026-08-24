@@ -10235,10 +10235,10 @@ def lancer_serveur_verification_qr(host="0.0.0.0", port=8000):
         row = _cad_qr_get_certificate(token)
         if not row:
             return HTMLResponse(
-                """<html><body style='font-family:Arial;padding:40px'>\n"
+                "<html><body style='font-family:Arial;padding:40px'>\n"
                 "<h1 style='color:#b91c1c'>CERTIFICAT NON AUTHENTIQUE</h1>\n"
                 "<p>Ce code QR ne correspond à aucun certificat actif enregistré dans le système.</p>\n"
-                "</body></html>""",
+                "</body></html>",
                 status_code=404,
             )
 
@@ -10320,8 +10320,6 @@ def lancer_serveur_verification_qr(host="0.0.0.0", port=8000):
         if not row:
             return HTMLResponse("Document introuvable", status_code=404)
 
-        # Le nouveau certificat Agent/Admin est généré en PDF.
-        # Les anciens certificats Word restent entièrement compatibles.
         path = row.get("fichier_pdf") or row.get("fichier_word")
         if not path or not os.path.exists(str(path)):
             return HTMLResponse("Document introuvable", status_code=404)
@@ -10335,30 +10333,31 @@ def lancer_serveur_verification_qr(host="0.0.0.0", port=8000):
 
     uvicorn.run(app, host=host, port=port)
 
+
 if __name__ == "__main__":
     import sys
     if "--qr-server" in sys.argv:
         lancer_serveur_verification_qr()
-        raise SystemExit(0)
+        sys.exit(0)
+    else:
         # ========================================================
-    # Configuration Flet pour les téléversements
-    # ========================================================
-    FLET_SECRET_KEY = os.environ.get("FLET_SECRET_KEY")
-    if not FLET_SECRET_KEY:
-        FLET_SECRET_KEY = secrets.token_urlsafe(32)
-        os.environ["FLET_SECRET_KEY"] = FLET_SECRET_KEY  # Injection pour Flet
+        # Configuration Flet pour les téléversements
+        # ========================================================
+        FLET_SECRET_KEY = os.environ.get("FLET_SECRET_KEY")
+        if not FLET_SECRET_KEY:
+            FLET_SECRET_KEY = secrets.token_urlsafe(32)
+            os.environ["FLET_SECRET_KEY"] = FLET_SECRET_KEY  # Injection pour Flet
 
-    # Création des dossiers avant le lancement de l'application.
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
-    os.makedirs(os.path.join(UPLOADS_DIR, "proprietaires"), exist_ok=True)
+        # Création des dossiers avant le lancement de l'application.
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        os.makedirs(os.path.join(UPLOADS_DIR, "proprietaires"), exist_ok=True)
 
-    # Lancement de l'application Flet en mode Web pour le serveur (Render)
-    import os
-    port = int(os.environ.get("PORT", 8080))
-    ft.app(
-        target=main,
-        view=None,
-        port=port,
-        host="0.0.0.0",
-        upload_dir=UPLOADS_DIR,
-    )
+        # Lancement de l'application Flet en mode Web pour le serveur (Render)
+        port = int(os.environ.get("PORT", 8080))
+        ft.app(
+            target=main,
+            view=None,
+            port=port,
+            host="0.0.0.0",
+            upload_dir=UPLOADS_DIR,
+        )
