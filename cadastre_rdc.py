@@ -1,19 +1,19 @@
-import flet as ft
 import asyncio
-import sqlite3
+from datetime import datetime
+import hashlib
 import json
 import math
 import os
-import uuid
-import hashlib
-import secrets
-import time
-import shutil
-import zipfile
-import unicodedata
 import re
-from datetime import datetime
-from zoneinfo import ZoneInfo
+import secrets
+import shutil
+import sqlite3
+import time
+import unicodedata
+import uuid
+import zipfile
+from zoneinfo :: ZoneInfo  # Gardez votre syntaxe d'import existante
+import flet as ft
 
 # ============================================================
 # CADASTRE RDC — 3e VERSION OPÉRATIONNELLE + AMÉLIORATIONS
@@ -884,477 +884,468 @@ for _lang, _values in TERRITORIAL_TRANSLATIONS.items():
 # BASE DE DONNÉES
 # ============================================================
 
+import asyncio
+from datetime import datetime
+import hashlib
+import json
+import math
+import os
+import re
+import secrets
+import shutil
+import sqlite3
+import time
+import unicodedata
+import uuid
+import zipfile
+from zoneinfo import ZoneInfo
+import flet as ft
+
+# ============================================================
+# CONFIGURATION TURSO & CHEMINS DE L'APPLICATION
+# ============================================================
+
+TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
+TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_NAME = "cadastre_rdc.db"
+DB_PATH = os.path.join(BASE_DIR, DB_NAME)
+BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+MODELES_DIR = os.path.join(BASE_DIR, "modeles")
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+CERTIFICATS_DIR = os.path.join(UPLOADS_DIR, "certificats")
+
+AUDIT_CONTEXT = {
+    "user_id": None,
+    "user_name": None,
+    "user_role": None,
+    "niveau_acces": "National",
+    "province": None,
+    "ville": None,
+    "territoire": None,
+    "commune": None,
+    "secteur_chefferie": None,
+    "groupement": None,
+    "village": None,
+    "departement": None,
+}
+
+
+def db_connect():
+  """Connexion centralisée et intelligente :
+
+  - Se connecte à Turso (Cloud) si TURSO_DATABASE_URL et TURSO_AUTH_TOKEN sont définis.
+  - Bascule sur SQLite local (cadastre_rdc.db) par défaut en environnement local.
+  """
+  if TURSO_URL and TURSO_TOKEN:
+    try:
+      import libsql_experimental as libsql
+
+      conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+      return conn
+    except Exception as e:
+      print(f"Erreur de connexion à Turso, repli sur SQLite local : {e}")
+
+  os.makedirs(BASE_DIR, exist_ok=True)
+  conn = sqlite3.connect(DB_PATH, timeout=15.0)
+  conn.row_factory = sqlite3.Row
+  conn.execute("PRAGMA foreign_keys = ON")
+  conn.execute("PRAGMA busy_timeout = 15000")
+  return conn
+
+
 # ============================================================
 # SAUVEGARDES ET CONTEXTE D'AUDIT
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, DB_NAME)
-BACKUP_DIR = os.path.join(BASE_DIR, "backups")
-UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-# Modèles Word et documents générés : ajoutés sans modifier les dossiers
-# historiques de PDF et de sauvegarde.
-MODELES_DIR = os.path.join(BASE_DIR, "modeles")
-# Les modèles officiels fournis par l'utilisateur sont prioritaires dans
-# le dossier templates/. L'ancien dossier modeles/ reste pris en charge
-# pour ne casser aucune fonctionnalité existante.
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-CERTIFICATS_DIR = os.path.join(UPLOADS_DIR, "certificats")
-AUDIT_CONTEXT = {"user_id": None, "user_name": None, "user_role": None, "niveau_acces": "National", "province": None, "ville": None, "territoire": None, "commune": None, "secteur_chefferie": None, "groupement": None, "village": None, "departement": None}
 
 def _safe_backup_name(label="auto"):
-    """Construit un nom de sauvegarde sûr et unique."""
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    clean = "".join(
-        ch if ch.isalnum() or ch in "-_" else "_"
-        for ch in str(label)
-    )
-    return os.path.join(
-        BACKUP_DIR,
-        f"cadastre_{clean}_{stamp}.zip",
-    )
+  """Construit un nom de sauvegarde sûr et unique."""
+  stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+  clean = "".join(
+      ch if ch.isalnum() or ch in "-_" else "_" for ch in str(label)
+  )
+  return os.path.join(
+      BACKUP_DIR,
+      f"cadastre_{clean}_{stamp}.zip",
+  )
 
 
 def _sha256_file(path):
-    """Calcule l'empreinte SHA-256 d'un fichier."""
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+  """Calcule l'empreinte SHA-256 d'un fichier."""
+  digest = hashlib.sha256()
+  with open(path, "rb") as fh:
+    for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+      digest.update(chunk)
+  return digest.hexdigest()
 
 
 def _snapshot_database(snapshot_path):
-    """
-    Crée une copie SQLite cohérente même si la base est utilisée.
-    Utilise l'API backup de SQLite plutôt qu'une simple copie de fichier.
-    """
-    os.makedirs(os.path.dirname(snapshot_path), exist_ok=True)
+  """Crée une copie SQLite cohérente même si la base est utilisée.
 
-    source = sqlite3.connect(DB_PATH)
+  Utilise l'API backup de SQLite plutôt qu'une simple copie de fichier.
+  """
+  os.makedirs(os.path.dirname(snapshot_path), exist_ok=True)
+
+  source = sqlite3.connect(DB_PATH)
+  try:
+    source.execute("PRAGMA busy_timeout=10000")
+    target = sqlite3.connect(snapshot_path)
     try:
-        source.execute("PRAGMA busy_timeout=10000")
-        target = sqlite3.connect(snapshot_path)
-        try:
-            source.backup(target)
-            target.execute("PRAGMA wal_checkpoint(FULL)")
-            target.commit()
-        finally:
-            target.close()
+      source.backup(target)
+      target.execute("PRAGMA wal_checkpoint(FULL)")
+      target.commit()
     finally:
-        source.close()
+      target.close()
+  finally:
+    source.close()
 
 
 def _cleanup_old_backups(max_backups=30):
-    """Conserve au maximum les sauvegardes les plus récentes."""
-    if not os.path.isdir(BACKUP_DIR):
-        return
+  """Conserve au maximum les sauvegardes les plus récentes."""
+  if not os.path.isdir(BACKUP_DIR):
+    return
 
-    files = [
-        os.path.join(BACKUP_DIR, name)
-        for name in os.listdir(BACKUP_DIR)
-        if name.lower().endswith(".zip")
-        and os.path.isfile(os.path.join(BACKUP_DIR, name))
-    ]
+  files = [
+      os.path.join(BACKUP_DIR, name)
+      for name in os.listdir(BACKUP_DIR)
+      if name.lower().endswith(".zip")
+      and os.path.isfile(os.path.join(BACKUP_DIR, name))
+  ]
 
-    files.sort(key=lambda item: os.path.getmtime(item), reverse=True)
+  files.sort(key=lambda item: os.path.getmtime(item), reverse=True)
 
-    for old_path in files[max_backups:]:
-        try:
-            os.remove(old_path)
-        except OSError:
-            pass
+  for old_path in files[max_backups:]:
+    try:
+      os.remove(old_path)
+    except OSError:
+      pass
 
 
 def make_backup(label="manual"):
-    """
-    Sauvegarde complète :
-      - snapshot cohérent de la base SQLite ;
-      - toutes les photos/documents du dossier uploads ;
-      - manifeste avec date, taille et SHA-256 ;
-      - conservation limitée des anciennes sauvegardes.
-    """
-    os.makedirs(BACKUP_DIR, exist_ok=True)
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
+  """Sauvegarde complète :
 
-    target = _safe_backup_name(label)
-    work_dir = os.path.join(
-        BASE_DIR,
-        f"_backup_work_{uuid.uuid4().hex}",
-    )
-    snapshot_db = os.path.join(
-        work_dir,
-        "cadastre_rdc.db",
-    )
+  - snapshot cohérent de la base SQLite ;
+  - toutes les photos/documents du dossier uploads ;
+  - manifeste avec date, taille et SHA-256 ;
+  - conservation limitée des anciennes sauvegardes.
+  """
+  os.makedirs(BACKUP_DIR, exist_ok=True)
+  os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+  target = _safe_backup_name(label)
+  work_dir = os.path.join(
+      BASE_DIR,
+      f"_backup_work_{uuid.uuid4().hex}",
+  )
+  snapshot_db = os.path.join(
+      work_dir,
+      "cadastre_rdc.db",
+  )
+
+  try:
+    os.makedirs(work_dir, exist_ok=True)
+
+    if not os.path.exists(DB_PATH):
+      raise FileNotFoundError("La base cadastre_rdc.db est introuvable.")
+
+    _snapshot_database(snapshot_db)
+
+    # Vérification de la copie avant archivage.
+    check = sqlite3.connect(snapshot_db)
     try:
-        os.makedirs(work_dir, exist_ok=True)
-
-        if not os.path.exists(DB_PATH):
-            raise FileNotFoundError(
-                "La base cadastre_rdc.db est introuvable."
-            )
-
-        _snapshot_database(snapshot_db)
-
-        # Vérification de la copie avant archivage.
-        check = sqlite3.connect(snapshot_db)
-        try:
-            result = check.execute(
-                "PRAGMA integrity_check"
-            ).fetchone()[0]
-            if result != "ok":
-                raise ValueError(
-                    "La copie SQLite créée est invalide."
-                )
-        finally:
-            check.close()
-
-        manifest = {
-            "application": "CADASTRE RDC",
-            "backup_type": str(label),
-            "created_at": datetime.now().isoformat(
-                timespec="seconds"
-            ),
-            "database": {
-                "path": "database/cadastre_rdc.db",
-                "size": os.path.getsize(snapshot_db),
-                "sha256": _sha256_file(snapshot_db),
-            },
-            "uploads_included": True,
-        }
-
-        with zipfile.ZipFile(
-            target,
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=6,
-        ) as zf:
-            zf.write(
-                snapshot_db,
-                arcname="database/cadastre_rdc.db",
-            )
-
-            for root, dirs, files in os.walk(UPLOADS_DIR):
-                # Le dossier de restauration temporaire ne doit
-                # jamais être recopié dans une sauvegarde.
-                dirs[:] = [
-                    d for d in dirs
-                    if d != "_restore"
-                ]
-
-                for name in files:
-                    path = os.path.join(root, name)
-                    zf.write(
-                        path,
-                        arcname=os.path.relpath(
-                            path,
-                            BASE_DIR,
-                        ),
-                    )
-
-            zf.writestr(
-                "backup_info.json",
-                json.dumps(
-                    manifest,
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-            )
-
-        # Vérification de l'archive créée.
-        with zipfile.ZipFile(target, "r") as zf:
-            if zf.testzip() is not None:
-                raise ValueError(
-                    "L'archive de sauvegarde est corrompue."
-                )
-
-        _cleanup_old_backups(max_backups=30)
-        return target, None
-
-    except Exception as ex:
-        try:
-            if os.path.exists(target):
-                os.remove(target)
-        except OSError:
-            pass
-
-        return None, str(ex)
-
+      result = check.execute("PRAGMA integrity_check").fetchone()[0]
+      if result != "ok":
+        raise ValueError("La copie SQLite créée est invalide.")
     finally:
-        shutil.rmtree(
-            work_dir,
-            ignore_errors=True,
-        )
+      check.close()
+
+    manifest = {
+        "application": "CADASTRE RDC",
+        "backup_type": str(label),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "database": {
+            "path": "database/cadastre_rdc.db",
+            "size": os.path.getsize(snapshot_db),
+            "sha256": _sha256_file(snapshot_db),
+        },
+        "uploads_included": True,
+    }
+
+    with zipfile.ZipFile(
+        target,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=6,
+    ) as zf:
+      zf.write(
+          snapshot_db,
+          arcname="database/cadastre_rdc.db",
+      )
+
+      for root, dirs, files in os.walk(UPLOADS_DIR):
+        # Le dossier de restauration temporaire ne doit jamais être recopié dans une sauvegarde.
+        dirs[:] = [d for d in dirs if d != "_restore"]
+
+        for name in files:
+          path = os.path.join(root, name)
+          zf.write(
+              path,
+              arcname=os.path.relpath(
+                  path,
+                  BASE_DIR,
+              ),
+          )
+
+      zf.writestr(
+          "backup_info.json",
+          json.dumps(
+              manifest,
+              ensure_ascii=False,
+              indent=2,
+          ),
+      )
+
+    # Vérification de l'archive créée.
+    with zipfile.ZipFile(target, "r") as zf:
+      if zf.testzip() is not None:
+        raise ValueError("L'archive de sauvegarde est corrompue.")
+
+    _cleanup_old_backups(max_backups=30)
+    return target, None
+
+  except Exception as ex:
+    try:
+      if os.path.exists(target):
+        os.remove(target)
+    except OSError:
+      pass
+
+    return None, str(ex)
+
+  finally:
+    shutil.rmtree(
+        work_dir,
+        ignore_errors=True,
+    )
 
 
 def auto_backup_if_due():
-    """
-    Effectue au maximum une sauvegarde automatique par jour.
-    """
-    os.makedirs(BACKUP_DIR, exist_ok=True)
+  """Effectue au maximum une sauvegarde automatique par jour."""
+  os.makedirs(BACKUP_DIR, exist_ok=True)
 
-    today = datetime.now().strftime("%Y%m%d")
+  today = datetime.now().strftime("%Y%m%d")
 
-    existing = [
-        name
-        for name in os.listdir(BACKUP_DIR)
-        if name.startswith(
-            f"cadastre_auto_{today}_"
-        )
-        and name.lower().endswith(".zip")
-    ]
+  existing = [
+      name
+      for name in os.listdir(BACKUP_DIR)
+      if name.startswith(f"cadastre_auto_{today}_")
+      and name.lower().endswith(".zip")
+  ]
 
-    if existing:
-        return sorted(existing)[-1]
+  if existing:
+    return sorted(existing)[-1]
 
-    path, _ = make_backup("auto")
+  path, _ = make_backup("auto")
 
-    return (
-        os.path.basename(path)
-        if path
-        else None
-    )
+  return os.path.basename(path) if path else None
 
 
 def _safe_extract_zip(zf, destination):
-    """
-    Extrait une archive sans autoriser les chemins ../
-    ou les chemins absolus.
-    """
-    base = os.path.abspath(destination)
+  """Extrait une archive sans autoriser les chemins ../ ou les chemins absolus."""
+  base = os.path.abspath(destination)
 
-    for member in zf.infolist():
-        member_path = os.path.abspath(
-            os.path.join(
-                destination,
-                member.filename,
-            )
+  for member in zf.infolist():
+    member_path = os.path.abspath(
+        os.path.join(
+            destination,
+            member.filename,
         )
+    )
 
-        if os.path.commonpath(
-            [base, member_path]
-        ) != base:
-            raise ValueError(
-                "Archive refusée : chemin non sécurisé."
-            )
+    if os.path.commonpath([base, member_path]) != base:
+      raise ValueError("Archive refusée : chemin non sécurisé.")
 
-    zf.extractall(destination)
+  zf.extractall(destination)
 
 
 def restore_backup_archive(archive_path):
-    """
-    Restauration contrôlée d'une sauvegarde.
+  """Restauration contrôlée d'une sauvegarde."""
+  temp_dir = os.path.join(
+      BASE_DIR,
+      f"_restore_work_{uuid.uuid4().hex}",
+  )
 
-    Étapes :
-      1. vérification ZIP ;
-      2. extraction dans un dossier temporaire ;
-      3. vérification de la base SQLite ;
-      4. sauvegarde pré-restauration ;
-      5. remplacement atomique de la base ;
-      6. restauration des uploads ;
-      7. réinitialisation de la base.
-    """
-    temp_dir = os.path.join(
-        BASE_DIR,
-        f"_restore_work_{uuid.uuid4().hex}",
+  os.makedirs(temp_dir, exist_ok=True)
+
+  try:
+    if not os.path.isfile(archive_path):
+      raise FileNotFoundError("Fichier de sauvegarde introuvable.")
+
+    with zipfile.ZipFile(
+        archive_path,
+        "r",
+    ) as zf:
+      bad = zf.testzip()
+
+      if bad:
+        raise ValueError(f"Archive corrompue : {bad}")
+
+      _safe_extract_zip(
+          zf,
+          temp_dir,
+      )
+
+    restored_db = os.path.join(
+        temp_dir,
+        "database",
+        "cadastre_rdc.db",
     )
 
-    os.makedirs(temp_dir, exist_ok=True)
+    if not os.path.isfile(restored_db):
+      raise ValueError("La sauvegarde ne contient pas la base cadastrale.")
+
+    # Vérification SQLite.
+    test = sqlite3.connect(restored_db)
 
     try:
-        if not os.path.isfile(archive_path):
-            raise FileNotFoundError(
-                "Fichier de sauvegarde introuvable."
-            )
+      result = test.execute("PRAGMA integrity_check").fetchone()[0]
 
-        with zipfile.ZipFile(
-            archive_path,
-            "r",
-        ) as zf:
-            bad = zf.testzip()
+      if result != "ok":
+        raise ValueError("La base de la sauvegarde est invalide.")
+    finally:
+      test.close()
 
-            if bad:
-                raise ValueError(
-                    f"Archive corrompue : {bad}"
-                )
+    # Sauvegarde de sécurité avant restauration.
+    before_restore, backup_error = make_backup("pre_restore")
 
-            _safe_extract_zip(
-                zf,
-                temp_dir,
-            )
+    if not before_restore:
+      raise RuntimeError(
+          "Impossible de créer la sauvegarde avant restauration :"
+          f" {backup_error}"
+      )
 
-        restored_db = os.path.join(
-            temp_dir,
-            "database",
-            "cadastre_rdc.db",
-        )
+    restoring_path = DB_PATH + ".restoring"
 
-        if not os.path.isfile(restored_db):
-            raise ValueError(
-                "La sauvegarde ne contient pas "
-                "la base cadastrale."
-            )
+    try:
+      if os.path.exists(restoring_path):
+        os.remove(restoring_path)
 
-        # Vérification SQLite.
-        test = sqlite3.connect(restored_db)
+      shutil.copy2(
+          restored_db,
+          restoring_path,
+      )
 
-        try:
-            result = test.execute(
-                "PRAGMA integrity_check"
-            ).fetchone()[0]
-
-            if result != "ok":
-                raise ValueError(
-                    "La base de la sauvegarde est invalide."
-                )
-        finally:
-            test.close()
-
-        # Sauvegarde de sécurité avant restauration.
-        before_restore, backup_error = make_backup(
-            "pre_restore"
-        )
-
-        if not before_restore:
-            raise RuntimeError(
-                "Impossible de créer la sauvegarde "
-                f"avant restauration : {backup_error}"
-            )
-
-        # Fermer les connexions éventuelles est important
-        # avant le remplacement de SQLite.
-        restoring_path = DB_PATH + ".restoring"
-
-        try:
-            if os.path.exists(restoring_path):
-                os.remove(restoring_path)
-
-            shutil.copy2(
-                restored_db,
-                restoring_path,
-            )
-
-            os.replace(
-                restoring_path,
-                DB_PATH,
-            )
-
-        finally:
-            if os.path.exists(restoring_path):
-                try:
-                    os.remove(restoring_path)
-                except OSError:
-                    pass
-
-        # Restaurer les photos/documents si présents.
-        restored_uploads = os.path.join(
-            temp_dir,
-            "uploads",
-        )
-
-        if os.path.isdir(restored_uploads):
-            old_uploads = (
-                UPLOADS_DIR
-                + "_before_restore"
-            )
-
-            try:
-                if os.path.exists(old_uploads):
-                    shutil.rmtree(old_uploads)
-
-                if os.path.isdir(UPLOADS_DIR):
-                    os.replace(
-                        UPLOADS_DIR,
-                        old_uploads,
-                    )
-
-                shutil.copytree(
-                    restored_uploads,
-                    UPLOADS_DIR,
-                )
-
-                if os.path.exists(old_uploads):
-                    shutil.rmtree(old_uploads)
-
-            except Exception:
-                # Tentative de retour arrière des uploads.
-                if os.path.isdir(UPLOADS_DIR):
-                    shutil.rmtree(
-                        UPLOADS_DIR,
-                        ignore_errors=True,
-                    )
-
-                if os.path.isdir(old_uploads):
-                    os.replace(
-                        old_uploads,
-                        UPLOADS_DIR,
-                    )
-
-                raise
-
-        init_database()
-
-        return True, None
-
-    except Exception as ex:
-        return False, str(ex)
+      os.replace(
+          restoring_path,
+          DB_PATH,
+      )
 
     finally:
-        shutil.rmtree(
-            temp_dir,
-            ignore_errors=True,
+      if os.path.exists(restoring_path):
+        try:
+          os.remove(restoring_path)
+        except OSError:
+          pass
+
+    # Restaurer les photos/documents si présents.
+    restored_uploads = os.path.join(
+        temp_dir,
+        "uploads",
+    )
+
+    if os.path.isdir(restored_uploads):
+      old_uploads = UPLOADS_DIR + "_before_restore"
+
+      try:
+        if os.path.exists(old_uploads):
+          shutil.rmtree(old_uploads)
+
+        if os.path.isdir(UPLOADS_DIR):
+          os.replace(
+              UPLOADS_DIR,
+              old_uploads,
+          )
+
+        shutil.copytree(
+            restored_uploads,
+            UPLOADS_DIR,
         )
 
-def db_connect():
-    """Connexion UNIQUE et centralisée à la base cadastrale officielle.
+        if os.path.exists(old_uploads):
+          shutil.rmtree(old_uploads)
 
-    Toutes les fonctions de l'application passent par cette fonction afin
-    d'éviter qu'une seconde base SQLite soit créée dans un autre dossier.
-    """
-    os.makedirs(BASE_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=15.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA busy_timeout = 15000")
-    return conn
+      except Exception:
+        if os.path.isdir(UPLOADS_DIR):
+          shutil.rmtree(
+              UPLOADS_DIR,
+              ignore_errors=True,
+          )
+
+        if os.path.isdir(old_uploads):
+          os.replace(
+              old_uploads,
+              UPLOADS_DIR,
+          )
+
+        raise
+
+    init_database()
+
+    return True, None
+
+  except Exception as ex:
+    return False, str(ex)
+
+  finally:
+    shutil.rmtree(
+        temp_dir,
+        ignore_errors=True,
+    )
 
 
 def verify_database_connection():
-    """Vérifie que l'application travaille bien sur cadastre_rdc.db."""
-    expected_name = os.path.basename(DB_PATH).lower()
-    if expected_name != "cadastre_rdc.db":
+  """Vérifie l'intégrité de la connexion à la base de données."""
+  conn = db_connect()
+  try:
+    # Si on utilise Turso, les pragmas locaux peuvent différer, on valide simplement une requête basique
+    if not (TURSO_URL and TURSO_TOKEN):
+      expected_name = os.path.basename(DB_PATH).lower()
+      if expected_name != "cadastre_rdc.db":
         raise RuntimeError(
             f"Configuration base invalide : {os.path.basename(DB_PATH)}"
         )
-
-    conn = db_connect()
-    try:
-        integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
-        if integrity != "ok":
-            raise RuntimeError(
-                f"La base cadastrale n'est pas intègre : {integrity}"
-            )
-        conn.execute("SELECT 1").fetchone()
-    finally:
-        conn.close()
-    return DB_PATH
+      integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+      if integrity != "ok":
+        raise RuntimeError(
+            f"La base cadastrale n'est pas intègre : {integrity}"
+        )
+    conn.execute("SELECT 1").fetchone()
+  finally:
+    conn.close()
+  return "Cloud Turso" if (TURSO_URL and TURSO_TOKEN) else DB_PATH
 
 
 def add_column_if_missing(conn, table, column, definition):
+  try:
     columns = [
         row["name"]
         for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
     ]
     if column not in columns:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+      conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+  except Exception:
+    pass
 
 
 def init_database():
-    conn = db_connect()
-    cur = conn.cursor()
+  """Initialise toutes les tables requises au démarrage."""
+  conn = db_connect()
+  cur = conn.cursor()
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS proprietaires (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nom_complet TEXT NOT NULL,
@@ -1366,7 +1357,7 @@ def init_database():
         )
     """)
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS parcelles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             numero TEXT UNIQUE NOT NULL,
@@ -1388,7 +1379,7 @@ def init_database():
         )
     """)
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             parcelle_id INTEGER,
@@ -1399,7 +1390,7 @@ def init_database():
         )
     """)
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS mutations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             parcelle_id INTEGER NOT NULL,
@@ -1417,7 +1408,7 @@ def init_database():
         )
     """)
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS utilisateurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nom TEXT NOT NULL,
@@ -1427,19 +1418,106 @@ def init_database():
         )
     """)
 
-    # Colonnes de sécurité ajoutées progressivement pour préserver
-    # les bases SQLite créées par les versions précédentes.
-    add_column_if_missing(conn, "utilisateurs", "password_hash", "TEXT")
-    add_column_if_missing(conn, "utilisateurs", "password_salt", "TEXT")
-    add_column_if_missing(conn, "utilisateurs", "failed_attempts", "INTEGER DEFAULT 0")
-    add_column_if_missing(conn, "utilisateurs", "locked_until", "REAL DEFAULT 0")
-    add_column_if_missing(conn, "utilisateurs", "last_login", "TEXT")
-    add_column_if_missing(conn, "utilisateurs", "active", "INTEGER DEFAULT 1")
+  conn.commit()
+  conn.close()
 
-    # --------------------------------------------------------
-    # Architecture territoriale et administrative
-    # --------------------------------------------------------
-    cur.execute("""
+
+def init_database():
+  """Initialise toutes les tables requises au démarrage et applique les
+
+  migrations de colonnes nécessaires pour la sécurité et l'architecture
+  territoriale.
+  """
+  conn = db_connect()
+  cur = conn.cursor()
+
+  # Tables principales de base
+  cur.execute("""
+        CREATE TABLE IF NOT EXISTS proprietaires (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom_complet TEXT NOT NULL,
+            telephone TEXT,
+            email TEXT,
+            piece_identite TEXT,
+            photo TEXT,
+            date_creation TEXT NOT NULL
+        )
+    """)
+
+  cur.execute("""
+        CREATE TABLE IF NOT EXISTS parcelles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero TEXT UNIQUE NOT NULL,
+            adresse TEXT,
+            province TEXT,
+            ville_territoire TEXT,
+            commune_chefferie TEXT,
+            quartier_groupement TEXT,
+            localite TEXT,
+            superficie REAL,
+            latitude REAL,
+            longitude REAL,
+            polygone TEXT,
+            proprietaire_id INTEGER,
+            statut TEXT DEFAULT 'Occupée',
+            date_enregistrement TEXT NOT NULL,
+            agent TEXT,
+            FOREIGN KEY(proprietaire_id) REFERENCES proprietaires(id)
+        )
+    """)
+
+  cur.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            parcelle_id INTEGER,
+            nom_document TEXT,
+            chemin TEXT,
+            date_ajout TEXT NOT NULL,
+            FOREIGN KEY(parcelle_id) REFERENCES parcelles(id)
+        )
+    """)
+
+  cur.execute("""
+        CREATE TABLE IF NOT EXISTS mutations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            parcelle_id INTEGER NOT NULL,
+            ancien_proprietaire_id INTEGER,
+            nouveau_proprietaire_id INTEGER,
+            type_transaction TEXT,
+            reference_acte TEXT,
+            prix REAL,
+            date_transaction TEXT NOT NULL,
+            agent TEXT,
+            statut TEXT DEFAULT 'En attente',
+            FOREIGN KEY(parcelle_id) REFERENCES parcelles(id),
+            FOREIGN KEY(ancien_proprietaire_id) REFERENCES proprietaires(id),
+            FOREIGN KEY(nouveau_proprietaire_id) REFERENCES proprietaires(id)
+        )
+    """)
+
+  cur.execute("""
+        CREATE TABLE IF NOT EXISTS utilisateurs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            role TEXT NOT NULL,
+            telephone TEXT,
+            date_creation TEXT NOT NULL
+        )
+    """)
+
+  # Colonnes de sécurité ajoutées progressivement pour préserver
+  # les bases créées par les versions précédentes.
+  add_column_if_missing(conn, "utilisateurs", "password_hash", "TEXT")
+  add_column_if_missing(conn, "utilisateurs", "password_salt", "TEXT")
+  add_column_if_missing(conn, "utilisateurs", "failed_attempts", "INTEGER DEFAULT 0")
+  add_column_if_missing(conn, "utilisateurs", "locked_until", "REAL DEFAULT 0")
+  add_column_if_missing(conn, "utilisateurs", "last_login", "TEXT")
+  add_column_if_missing(conn, "utilisateurs", "active", "INTEGER DEFAULT 1")
+
+  # --------------------------------------------------------
+  # Architecture territoriale et administrative
+  # --------------------------------------------------------
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS structures_territoriales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT NOT NULL,
@@ -1453,7 +1531,7 @@ def init_database():
         )
     """)
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS departements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nom TEXT NOT NULL,
@@ -1465,47 +1543,46 @@ def init_database():
         )
     """)
 
-    # Extensions compatibles avec toutes les bases existantes.
-    for _table, _column, _definition in [
-        ("utilisateurs", "niveau_acces", "TEXT DEFAULT 'National'"),
-        ("utilisateurs", "province", "TEXT"),
-        ("utilisateurs", "ville", "TEXT"),
-        ("utilisateurs", "territoire", "TEXT"),
-        ("utilisateurs", "commune", "TEXT"),
-        ("utilisateurs", "secteur_chefferie", "TEXT"),
-        ("utilisateurs", "groupement", "TEXT"),
-        ("utilisateurs", "village", "TEXT"),
-        ("utilisateurs", "departement", "TEXT"),
-        ("parcelles", "niveau_territorial", "TEXT"),
-        ("parcelles", "structure_code", "TEXT"),
-    ]:
-        add_column_if_missing(conn, _table, _column, _definition)
+  # Extensions compatibles avec toutes les bases existantes.
+  for _table, _column, _definition in [
+      ("utilisateurs", "niveau_acces", "TEXT DEFAULT 'National'"),
+      ("utilisateurs", "province", "TEXT"),
+      ("utilisateurs", "ville", "TEXT"),
+      ("utilisateurs", "territoire", "TEXT"),
+      ("utilisateurs", "commune", "TEXT"),
+      ("utilisateurs", "secteur_chefferie", "TEXT"),
+      ("utilisateurs", "groupement", "TEXT"),
+      ("utilisateurs", "village", "TEXT"),
+      ("utilisateurs", "departement", "TEXT"),
+      ("parcelles", "niveau_territorial", "TEXT"),
+      ("parcelles", "structure_code", "TEXT"),
+  ]:
+    add_column_if_missing(conn, _table, _column, _definition)
 
-    # Référentiel initial des 26 provinces. Les villes et territoires
-    # sont ajoutés ensuite par l'administration territoriale.
-    _provinces = [
-        ("CD-KN", "Kinshasa"), ("CD-KC", "Kongo-Central"), ("CD-KW", "Kwango"),
-        ("CD-KL", "Kwilu"), ("CD-MN", "Mai-Ndombe"), ("CD-EQ", "Équateur"),
-        ("CD-MO", "Mongala"), ("CD-NU", "Nord-Ubangi"), ("CD-SU", "Sud-Ubangi"),
-        ("CD-TS", "Tshuapa"), ("CD-IT", "Ituri"), ("CD-HU", "Haut-Uele"),
-        ("CD-BU", "Bas-Uele"), ("CD-NK", "Nord-Kivu"), ("CD-SK", "Sud-Kivu"),
-        ("CD-MA", "Maniema"), ("CD-TA", "Tanganyika"), ("CD-HL", "Haut-Lomami"),
-        ("CD-LU", "Lualaba"), ("CD-HK", "Haut-Katanga"), ("CD-KS", "Kasaï"),
-        ("CD-KC2", "Kasaï-Central"), ("CD-KO", "Kasaï-Oriental"), ("CD-LO", "Lomami"),
-        ("CD-SA", "Sankuru"), ("CD-TSH", "Tshopo"),
-    ]
-    # Mai-Ndombe ne doit apparaître qu'une seule fois.
-    _seen = set()
-    for _code, _name in _provinces:
-        if _name in _seen:
-            continue
-        _seen.add(_name)
-        conn.execute(
-            "INSERT OR IGNORE INTO structures_territoriales(type, code, nom, parent_id, actif, date_creation) VALUES ('Province', ?, ?, NULL, 1, ?)",
-            (_code, _name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        )
+  # Référentiel initial des 26 provinces.
+  _provinces = [
+      ("CD-KN", "Kinshasa"), ("CD-KC", "Kongo-Central"), ("CD-KW", "Kwango"),
+      ("CD-KL", "Kwilu"), ("CD-MN", "Mai-Ndombe"), ("CD-EQ", "Équateur"),
+      ("CD-MO", "Mongala"), ("CD-NU", "Nord-Ubangi"), ("CD-SU", "Sud-Ubangi"),
+      ("CD-TS", "Tshuapa"), ("CD-IT", "Ituri"), ("CD-HU", "Haut-Uele"),
+      ("CD-BU", "Bas-Uele"), ("CD-NK", "Nord-Kivu"), ("CD-SK", "Sud-Kivu"),
+      ("CD-MA", "Maniema"), ("CD-TA", "Tanganyika"), ("CD-HL", "Haut-Lomami"),
+      ("CD-LU", "Lualaba"), ("CD-HK", "Haut-Katanga"), ("CD-KS", "Kasaï"),
+      ("CD-KC2", "Kasaï-Central"), ("CD-KO", "Kasaï-Oriental"), ("CD-LO", "Lomami"),
+      ("CD-SA", "Sankuru"), ("CD-TSH", "Tshopo"),
+  ]
+  
+  _seen = set()
+  for _code, _name in _provinces:
+    if _name in _seen:
+      continue
+    _seen.add(_name)
+    conn.execute(
+        "INSERT OR IGNORE INTO structures_territoriales(type, code, nom, parent_id, actif, date_creation) VALUES ('Province', ?, ?, NULL, 1, ?)",
+        (_code, _name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    )
 
-    cur.execute("""
+  cur.execute("""
         CREATE TABLE IF NOT EXISTS journal (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT NOT NULL,
@@ -1514,69 +1591,66 @@ def init_database():
         )
     """)
 
-    add_column_if_missing(conn, "journal", "utilisateur_id", "INTEGER")
-    add_column_if_missing(conn, "journal", "utilisateur_nom", "TEXT")
-    add_column_if_missing(conn, "journal", "role", "TEXT")
-    add_column_if_missing(conn, "journal", "niveau_acces", "TEXT")
-    add_column_if_missing(conn, "journal", "province", "TEXT")
-    add_column_if_missing(conn, "journal", "ville", "TEXT")
-    add_column_if_missing(conn, "journal", "territoire", "TEXT")
-    add_column_if_missing(conn, "journal", "commune", "TEXT")
-    add_column_if_missing(conn, "journal", "secteur_chefferie", "TEXT")
-    add_column_if_missing(conn, "journal", "groupement", "TEXT")
-    add_column_if_missing(conn, "journal", "village", "TEXT")
-    add_column_if_missing(conn, "journal", "departement", "TEXT")
+  for _col, _def in [
+      ("utilisateur_id", "INTEGER"),
+      ("utilisateur_nom", "TEXT"),
+      ("role", "TEXT"),
+      ("niveau_acces", "TEXT"),
+      ("province", "TEXT"),
+      ("ville", "TEXT"),
+      ("territoire", "TEXT"),
+      ("commune", "TEXT"),
+      ("secteur_chefferie", "TEXT"),
+      ("groupement", "TEXT"),
+      ("village", "TEXT"),
+      ("departement", "TEXT"),
+  ]:
+    add_column_if_missing(conn, "journal", _col, _def)
 
-    # --------------------------------------------------------
-    # Migration / compatibilité avec les anciennes versions
-    # --------------------------------------------------------
-    add_column_if_missing(conn, "proprietaires", "telephone", "TEXT")
-    add_column_if_missing(conn, "proprietaires", "email", "TEXT")
-    add_column_if_missing(conn, "proprietaires", "piece_identite", "TEXT")
-    add_column_if_missing(conn, "proprietaires", "photo", "TEXT")
-    add_column_if_missing(conn, "proprietaires", "date_creation", "TEXT")
+  # --------------------------------------------------------
+  # Migration / compatibilité avec les anciennes versions
+  # --------------------------------------------------------
+  add_column_if_missing(conn, "proprietaires", "telephone", "TEXT")
+  add_column_if_missing(conn, "proprietaires", "email", "TEXT")
+  add_column_if_missing(conn, "proprietaires", "piece_identite", "TEXT")
+  add_column_if_missing(conn, "proprietaires", "photo", "TEXT")
+  add_column_if_missing(conn, "proprietaires", "date_creation", "TEXT")
 
-    add_column_if_missing(conn, "parcelles", "numero", "TEXT")
-    add_column_if_missing(conn, "parcelles", "polygone", "TEXT")
-    add_column_if_missing(conn, "parcelles", "proprietaire_id", "INTEGER")
-    add_column_if_missing(conn, "parcelles", "statut", "TEXT DEFAULT 'Occupée'")
-    add_column_if_missing(conn, "parcelles", "agent", "TEXT")
+  add_column_if_missing(conn, "parcelles", "numero", "TEXT")
+  add_column_if_missing(conn, "parcelles", "polygone", "TEXT")
+  add_column_if_missing(conn, "parcelles", "proprietaire_id", "INTEGER")
+  add_column_if_missing(conn, "parcelles", "statut", "TEXT DEFAULT 'Occupée'")
+  add_column_if_missing(conn, "parcelles", "agent", "TEXT")
 
-    # Certaines anciennes versions utilisaient cni/date_enregistrement
-    # au lieu de piece_identite/date_creation.
-    old_columns = [
-        row["name"]
-        for row in conn.execute(
-            "PRAGMA table_info(proprietaires)"
-        ).fetchall()
-    ]
-    
-    if "cni" in old_columns and "piece_identite" in old_columns:
-        conn.execute("UPDATE proprietaires SET piece_identite = cni WHERE (piece_identite IS NULL OR piece_identite = '') AND cni IS NOT NULL")
-    if "date_enregistrement" in old_columns and "date_creation" in old_columns:
-        conn.execute("UPDATE proprietaires SET date_creation = date_enregistrement WHERE (date_creation IS NULL OR date_creation = '') AND date_enregistrement IS NOT NULL")
-    
-    conn.commit()
+  # Gestion des anciennes colonnes (cni / date_enregistrement)
+  old_columns = [
+      row["name"]
+      for row in conn.execute(
+          "PRAGMA table_info(proprietaires)"
+      ).fetchall()
+  ]
 
-    if "cni" in old_columns:
-        conn.execute("""
+  if "cni" in old_columns:
+    conn.execute("""
             UPDATE proprietaires
             SET piece_identite = cni
             WHERE (piece_identite IS NULL OR piece_identite = '')
               AND cni IS NOT NULL
         """)
 
-    if "date_enregistrement" in old_columns:
-        conn.execute("""
+  if "date_enregistrement" in old_columns:
+    conn.execute("""
             UPDATE proprietaires
             SET date_creation = date_enregistrement
             WHERE (date_creation IS NULL OR date_creation = '')
               AND date_enregistrement IS NOT NULL
         """)
 
-    conn.commit()
-    conn.close()
+  conn.commit()
+  conn.close()
 
+# Lancement de l'initialisation des tables au chargement
+init_database()
 
 def journaliser(action, details=""):
     conn = db_connect()
