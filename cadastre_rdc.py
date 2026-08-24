@@ -5908,7 +5908,7 @@ def main(page: ft.Page):
                                             expand=True,
                                         ),
                                         ft.ElevatedButton(
-                                            "Télécharger le certificat",
+                                            "TELECHARGER LE CERTIFICAT PARCELAIRE PDF",
                                             icon=ft.Icons.DOWNLOAD,
                                             on_click=lambda e, r=dict(row): page.run_task(
                                                 telecharger_certificat_recherche, r
@@ -9245,7 +9245,7 @@ def documents_cadastraux_view(page, content, t=None, journaliser=None):
                                 expand=True,
                             ),
                             ft.ElevatedButton(
-                                "Télécharger le certificat d'enregistrement",
+                                "TELECHARGER LE CERTIFICAT PARCELAIRE PDF",
                                 icon=ft.Icons.DOWNLOAD,
                                 on_click=lambda e, r=row_dict: telecharger_certificat(r),
                             ),
